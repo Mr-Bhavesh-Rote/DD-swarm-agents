@@ -1,0 +1,31 @@
+# Secrets — never commit real env files (§3.1)
+.env
+backend/.env
+backend/.env-dev
+frontend/.env
+frontend/.env-dev
+*.env.local
+
+# Local run artifacts (pids + logs from run-local.sh)
+.local-run/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+
+# Node
+node_modules/
+frontend/dist/
+
+# Local CLI output / exports
+backend/out/
+/var/deepdd/
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/

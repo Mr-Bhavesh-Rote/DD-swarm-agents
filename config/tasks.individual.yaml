@@ -1,0 +1,27 @@
+# config/tasks.individual.yaml
+# Task DAG for the "individual" subject type.
+
+identity_research:
+  agent: identity_background_researcher
+  depends_on: []
+  expected_output: findings[] with source_urls + narrative_markdown covering identity and background.
+
+career_research:
+  agent: career_history_researcher
+  depends_on: []
+  expected_output: findings[] with source_urls + narrative_markdown covering education, career history and current role.
+
+investment_research:
+  agent: investment_portfolio_researcher
+  depends_on: []
+  expected_output: findings[] with source_urls + narrative_markdown covering investments, portfolio, board positions and net worth (sourced/estimated).
+
+legal_reputation_research:
+  agent: legal_reputation_researcher
+  depends_on: []
+  expected_output: findings[] with source_urls + narrative_markdown covering legal/regulatory involvements and controversies.
+
+profile_aggregation:
+  agent: profile_aggregator
+  depends_on: [identity_research, career_research, investment_research, legal_reputation_research]
+  expected_output: consolidated findings bucketed into bio / career / investments / financial-legal.

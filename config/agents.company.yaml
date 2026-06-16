@@ -1,0 +1,52 @@
+# config/agents.company.yaml
+# Canonical agent definitions for the "company" subject type (CrewAI-style split).
+# Each entry maps an agent `name` -> role/goal/tools. `model`/`provider` are optional
+# per-agent overrides resolved per §4.3. `max_iterations` caps the tool-calling loop.
+
+company_profile_researcher:
+  role: Company Profile Analyst
+  goal: Gather business model, services, footprint, employee count, founding history, verticals and partnerships.
+  tools: [web_search, scraper]
+  max_iterations: 10
+  model: claude-sonnet-4-6        # optional per-agent override (§4.3)
+  provider: anthropic
+
+ownership_governance_researcher:
+  role: Ownership & Governance Analyst
+  goal: Map corporate structure, shareholding, ultimate beneficial owners, board composition, key management and any PEP / political exposure.
+  tools: [web_search, scraper]
+  max_iterations: 10
+  model: claude-sonnet-4-6
+  provider: anthropic
+
+financial_performance_researcher:
+  role: Financial Performance Analyst
+  goal: Collect revenue, profitability, funding rounds, valuations, filings and any audited or reported financial figures with their basis.
+  tools: [web_search, scraper]
+  max_iterations: 10
+  model: claude-sonnet-4-6
+  provider: anthropic
+
+legal_regulatory_researcher:
+  role: Legal & Compliance Analyst
+  goal: Investigate regulatory filings, litigation, sanctions, AML/anti-corruption matters and jurisdictional risk.
+  tools: [web_search, scraper]
+  max_iterations: 10
+  model: claude-sonnet-4-6
+  provider: anthropic
+
+reputation_media_researcher:
+  role: Reputational & Media Analyst
+  goal: Survey news, adverse media, ESG/environmental/community issues and procurement / tendering / counterparty concerns.
+  tools: [web_search, scraper]
+  max_iterations: 10
+  model: claude-sonnet-4-6
+  provider: anthropic
+
+risk_aggregator:
+  role: Risk Consolidation Analyst
+  goal: Consolidate and deduplicate all research findings into the required risk categories with severity ratings.
+  tools: [code_executor]
+  max_iterations: 4
+  model: claude-opus-4-8
+  provider: anthropic

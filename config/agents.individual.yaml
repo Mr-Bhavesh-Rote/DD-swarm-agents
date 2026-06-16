@@ -1,0 +1,43 @@
+# config/agents.individual.yaml
+# Canonical agent definitions for the "individual" subject type.
+# Public sources only; estimates must be labelled (§14).
+
+identity_background_researcher:
+  role: Identity & Background Analyst
+  goal: Establish identity, date/place of background, nationality and high-level biographical profile from public sources only.
+  tools: [web_search, scraper]
+  max_iterations: 10
+  model: claude-sonnet-4-6
+  provider: anthropic
+
+career_history_researcher:
+  role: Education & Career History Analyst
+  goal: Trace education, employment history, current role and affiliations with dates and sources.
+  tools: [web_search, scraper]
+  max_iterations: 10
+  model: claude-sonnet-4-6
+  provider: anthropic
+
+investment_portfolio_researcher:
+  role: Investment & Portfolio Analyst
+  goal: Document investment activity, portfolio holdings, board and advisory positions, and estimate net worth with stated basis.
+  tools: [web_search, scraper]
+  max_iterations: 10
+  model: claude-sonnet-4-6
+  provider: anthropic
+
+legal_reputation_researcher:
+  role: Legal & Reputational Analyst
+  goal: Investigate legal/regulatory involvements, controversies and reputational matters, avoiding unverified derogatory claims.
+  tools: [web_search, scraper]
+  max_iterations: 10
+  model: claude-sonnet-4-6
+  provider: anthropic
+
+profile_aggregator:
+  role: Profile Consolidation Analyst
+  goal: Consolidate and deduplicate findings into bio, career, investments and financial-legal buckets.
+  tools: [code_executor]
+  max_iterations: 4
+  model: claude-opus-4-8
+  provider: anthropic

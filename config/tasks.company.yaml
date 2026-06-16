@@ -1,0 +1,34 @@
+# config/tasks.company.yaml
+# Task DAG for the "company" subject type. Each task binds to one agent (by name in
+# agents.company.yaml) and declares its `depends_on` edges and `expected_output`.
+# The loader merges agents + tasks into the normalized WorkflowPlan (§5.2).
+
+profile_research:
+  agent: company_profile_researcher
+  depends_on: []
+  expected_output: findings[] with source_urls + narrative_markdown covering business model, footprint and founding history.
+
+ownership_research:
+  agent: ownership_governance_researcher
+  depends_on: []
+  expected_output: findings[] with source_urls + narrative_markdown covering corporate structure, shareholding, board and PEP exposure.
+
+financial_research:
+  agent: financial_performance_researcher
+  depends_on: []
+  expected_output: findings[] with source_urls + narrative_markdown covering revenue, funding, valuation and reported financials.
+
+legal_regulatory_research:
+  agent: legal_regulatory_researcher
+  depends_on: []
+  expected_output: findings[] with source_urls + narrative_markdown covering filings, litigation, sanctions, AML and jurisdictional risk.
+
+reputation_media_research:
+  agent: reputation_media_researcher
+  depends_on: []
+  expected_output: findings[] with source_urls + narrative_markdown covering adverse media, ESG and counterparty concerns.
+
+risk_aggregation:
+  agent: risk_aggregator
+  depends_on: [legal_regulatory_research, reputation_media_research]
+  expected_output: risk findings bucketed by category with severity.
