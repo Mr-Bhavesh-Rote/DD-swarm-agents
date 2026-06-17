@@ -6,32 +6,32 @@
 company_profile_researcher:
   role: Company Profile Analyst
   goal: Gather business model, services, footprint, employee count, founding history, verticals and partnerships.
-  tools: [web_search, scraper]
-  max_iterations: 10
+  tools: [web_search]
+  max_iterations: 5
   model: claude-sonnet-4-6        # optional per-agent override (§4.3)
   provider: anthropic
 
 ownership_governance_researcher:
   role: Ownership & Governance Analyst
   goal: Map corporate structure, shareholding, ultimate beneficial owners, board composition, key management and any PEP / political exposure.
-  tools: [web_search, scraper]
-  max_iterations: 10
+  tools: [web_search]
+  max_iterations: 5
   model: claude-sonnet-4-6
   provider: anthropic
 
 financial_performance_researcher:
   role: Financial Performance Analyst
   goal: Collect revenue, profitability, funding rounds, valuations, filings and any audited or reported financial figures with their basis.
-  tools: [web_search, scraper]
-  max_iterations: 10
+  tools: [web_search]
+  max_iterations: 5
   model: claude-sonnet-4-6
   provider: anthropic
 
 legal_regulatory_researcher:
   role: Legal & Compliance Analyst
   goal: Investigate regulatory filings, litigation, sanctions, AML/anti-corruption matters and jurisdictional risk.
-  tools: [web_search, scraper]
-  max_iterations: 10
+  tools: [web_search]
+  max_iterations: 5
   model: claude-sonnet-4-6
   provider: anthropic
 
@@ -39,7 +39,7 @@ reputation_media_researcher:
   role: Reputational & Media Analyst
   goal: Survey news, adverse media, ESG/environmental/community issues and procurement / tendering / counterparty concerns.
   tools: [web_search, scraper]
-  max_iterations: 10
+  max_iterations: 5
   model: claude-sonnet-4-6
   provider: anthropic
 

@@ -60,6 +60,10 @@ class Settings(BaseSettings):
 
     # --- Workflow tuning ---
     max_revisions: int = Field(default=2, alias="MAX_REVISIONS")
+    # Only run the (expensive) verifier→writer revise loop when faithfulness is below this.
+    # A report at/above this score is accepted as-is (flagged claims recorded), avoiding a
+    # full re-synthesis for a handful of weak citations.
+    revision_min_faithfulness: float = Field(default=0.7, alias="REVISION_MIN_FAITHFULNESS")
     max_subagents: int = Field(default=8, alias="MAX_SUBAGENTS")
     recursion_limit: int = Field(default=50, alias="RECURSION_LIMIT")
     run_budget_usd: float = Field(default=10.0, alias="RUN_BUDGET_USD")

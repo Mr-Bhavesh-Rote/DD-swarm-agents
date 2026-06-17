@@ -9,6 +9,8 @@ by the API layer.
 from __future__ import annotations
 
 import re
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from contextvars import copy_context
 from typing import Any, Dict, List, Tuple
 
 from app.core.config import get_settings
@@ -57,21 +59,34 @@ def verifier_node(state: Dict[str, Any], config: Dict[str, Any] | None = None) -
         sys = build_verifier_prompt()
         verdicts: Dict[int, Dict[str, Any]] = {}
         verdicts_by_text: Dict[str, Dict[str, Any]] = {}
-        for start in range(0, len(claims), _VERIFY_BATCH):
-            batch = claims[start : start + _VERIFY_BATCH]
+
+        # Verify batches CONCURRENTLY — they're independent, and running them one-by-one was
+        # a major latency sink (each Opus batch ~50s). A thread pool overlaps the network I/O;
+        # contextvars are copied so the Langfuse trace context propagates into each thread.
+        batches = [(start, claims[start : start + _VERIFY_BATCH])
+                   for start in range(0, len(claims), _VERIFY_BATCH)]
+
+        def _run_batch(start: int, batch: List[Dict[str, Any]]):
             payload = _build_verifier_payload(batch, sources_by_id)
-            result = invoke_json(verifier_model, sys, payload, callbacks=callbacks,
-                                 max_tokens=settings.verifier_max_tokens)
-            cost += result["cost_usd"]
-            for r in extract_list(result["data"], "results"):
-                # Tolerant matching: accept an explicit integer claim_index, and also key by
-                # the echoed claim text, so verdicts map back regardless of the exact
-                # verifier-prompt version in use (e.g. a prior version in the Langfuse registry).
-                ci = r.get("claim_index")
-                if isinstance(ci, int) and 0 <= ci < len(batch):
-                    verdicts[start + ci] = r
-                if r.get("claim"):
-                    verdicts_by_text[_norm_claim(r["claim"])] = r
+            return start, batch, invoke_json(
+                verifier_model, sys, payload, callbacks=callbacks,
+                max_tokens=settings.verifier_max_tokens,
+            )
+
+        max_workers = min(len(batches), 6)
+        with ThreadPoolExecutor(max_workers=max_workers) as ex:
+            futures = [ex.submit(copy_context().run, _run_batch, s, b) for s, b in batches]
+            for fut in as_completed(futures):
+                start, batch, result = fut.result()
+                cost += result["cost_usd"]
+                for r in extract_list(result["data"], "results"):
+                    # Tolerant matching: accept an explicit integer claim_index, and also key
+                    # by echoed claim text (robust to verifier-prompt version differences).
+                    ci = r.get("claim_index")
+                    if isinstance(ci, int) and 0 <= ci < len(batch):
+                        verdicts[start + ci] = r
+                    if r.get("claim"):
+                        verdicts_by_text[_norm_claim(r["claim"])] = r
 
         for i, c in enumerate(claims):
             verdict = verdicts.get(i) or verdicts_by_text.get(_norm_claim(c["text"]))
@@ -96,7 +111,13 @@ def verifier_node(state: Dict[str, Any], config: Dict[str, Any] | None = None) -
     }
 
     revision_count = state.get("revision_count", 0)
-    needs_revision = bool(flags) and revision_count < settings.max_revisions
+    # Only revise when faithfulness is genuinely poor — a near-clean report shouldn't pay for
+    # a full re-synthesis over a few weak citations (those are recorded in flags instead).
+    needs_revision = (
+        bool(flags)
+        and faithfulness < settings.revision_min_faithfulness
+        and revision_count < settings.max_revisions
+    )
 
     return {
         "verification": verification,

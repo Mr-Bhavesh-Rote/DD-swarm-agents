@@ -48,6 +48,29 @@ def compute_trace(run_id: str) -> tuple[Optional[str], str]:
         return None, host
 
 
+def resolve_trace_url(trace_id: Optional[str]) -> Optional[str]:
+    """Resolve the project-scoped trace deep-link (.../project/<id>/traces/<trace_id>).
+
+    `get_trace_url` returns None until the SDK has fetched the project id (an API call), so
+    callers may need to retry — we log a warning instead of swallowing silently, so a run that
+    never upgrades past the bare host is diagnosable. Returns None when Langfuse is off or the
+    project id is not yet available.
+    """
+    settings = get_settings()
+    if not (settings.langfuse_enabled and trace_id):
+        return None
+    try:
+        from langfuse import get_client
+
+        url = get_client().get_trace_url(trace_id=trace_id)
+        if not url:
+            print(f"[langfuse] trace url unresolved for {trace_id} (project id not yet fetched)", flush=True)
+        return url
+    except Exception as e:  # noqa: BLE001
+        print(f"[langfuse] trace url resolution failed for {trace_id}: {e}", flush=True)
+        return None
+
+
 @contextmanager
 def run_trace(
     trace_id: Optional[str], *, run_id: str, subject: str, subject_type: str,
@@ -77,7 +100,7 @@ def run_trace(
             client.update_current_trace(
                 session_id=run_id, name=subject, tags=(tags or []) + [subject_type]
             )
-            url = client.get_trace_url(trace_id=trace_id)  # in-span → no "No active span" warning
+            url = resolve_trace_url(trace_id)  # in-span → no "No active span" warning
         except Exception:
             pass
         yield url
@@ -92,25 +115,22 @@ def push_eval_scores(run_id: str, verification: Dict[str, Any]) -> None:
         from langfuse import get_client
 
         client = get_client()
+        # Attach to BOTH the trace (so scores show on the run's trace view) and the session.
+        trace_id = client.create_trace_id(seed=run_id)
         client.create_score(
             name="citation_coverage",
             value=float(verification.get("citation_coverage", 0.0)),
+            trace_id=trace_id,
             session_id=run_id,
             data_type="NUMERIC",
         )
         client.create_score(
             name="faithfulness",
             value=float(verification.get("faithfulness_score", 0.0)),
+            trace_id=trace_id,
             session_id=run_id,
             data_type="NUMERIC",
         )
         client.flush()
     except Exception:
         pass
-
-
-def trace_url(run_id: str) -> str:
-    """Best-effort Langfuse deep-link for a run (filtered by session id)."""
-    settings = get_settings()
-    host = settings.langfuse_host.rstrip("/")
-    return f"{host}/sessions/{run_id}"

@@ -16,7 +16,7 @@ from sqlalchemy import delete, select
 
 from app.core.config import get_settings
 from app.core.events import clear_heartbeat, heartbeat, is_cancelled, publish_event
-from app.core.observability import compute_trace, get_langfuse_handler, push_eval_scores, run_trace
+from app.core.observability import compute_trace, get_langfuse_handler, push_eval_scores, resolve_trace_url, run_trace
 from app.core.prompts import register_templates
 from app.db.models import FindingRow, Report, Run, RunAgent, SourceRow, WorkflowPlanRow
 from app.db.session import sync_session
@@ -154,6 +154,12 @@ def execute_run(run_id: str) -> None:
         clear_heartbeat(run_id)
         if cp_conn is not None:
             cp_conn.close()
+        # If the in-span resolution never upgraded past the provisional host (e.g. the SDK
+        # hadn't fetched the project id yet), try once more now that the trace has flushed.
+        if trace_id:
+            final_url = resolve_trace_url(trace_id)
+            if final_url and final_url != trace_link:
+                _set_trace_link(run_id, final_url)
 
     # Persist whatever was produced — even on failure/cancel — so completed research,
     # sources and findings are never lost (child tables populate from the reducer channels).
