@@ -6,7 +6,8 @@ create_score. Everything is a safe no-op when Langfuse is not configured.
 """
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from contextlib import contextmanager
+from typing import Any, Dict, Iterator, List, Optional
 
 from app.core.config import get_settings
 
@@ -14,12 +15,8 @@ from app.core.config import get_settings
 def get_langfuse_handler(
     *, run_id: str, subject: str, subject_type: str, tags: Optional[List[str]] = None
 ) -> Optional[Any]:
-    """Return a LangChain CallbackHandler, or None if disabled.
-
-    In langfuse v3 the handler takes no constructor args (keys are read from the
-    environment); trace attributes (session id, tags, metadata) are attached via the run
-    config — see `trace_config`.
-    """
+    """Return a LangChain CallbackHandler, or None if disabled. The handler nests its spans
+    under whatever trace is active (we open one explicitly in `run_trace`)."""
     settings = get_settings()
     if not settings.langfuse_enabled:
         return None
@@ -31,26 +28,59 @@ def get_langfuse_handler(
         return None
 
 
-def trace_config(
-    handler: Optional[Any], *, run_id: str, subject: str, subject_type: str,
-    tags: Optional[List[str]] = None,
-) -> Dict[str, Any]:
-    """Build the LangGraph config fragment with callbacks + Langfuse trace metadata.
+def compute_trace(run_id: str) -> tuple[Optional[str], str]:
+    """Return (trace_id, provisional_url).
 
-    Langfuse v3 reads `langfuse_session_id` / `langfuse_tags` and arbitrary metadata from
-    the runnable config's `metadata` to scope and tag the trace (one trace per run)."""
-    if not handler:
-        return {}
-    return {
-        "callbacks": [handler],
-        "metadata": {
-            "langfuse_session_id": run_id,
-            "langfuse_tags": (tags or []) + [subject_type],
-            "run_id": run_id,
-            "subject": subject,
-            "subject_type": subject_type,
-        },
-    }
+    The trace id is derived deterministically from the run id (so the run's spans are forced
+    onto it in `run_trace`). The real project-scoped URL is resolved later, INSIDE the trace
+    span (avoids the SDK's "No active span" warning); until then we use the host as a
+    provisional link. Returns (None, host) when Langfuse is disabled/unavailable.
+    """
+    settings = get_settings()
+    host = settings.langfuse_host.rstrip("/")
+    if not settings.langfuse_enabled:
+        return None, host
+    try:
+        from langfuse import get_client
+
+        return get_client().create_trace_id(seed=run_id), host
+    except Exception:
+        return None, host
+
+
+@contextmanager
+def run_trace(
+    trace_id: Optional[str], *, run_id: str, subject: str, subject_type: str,
+    tags: Optional[List[str]] = None,
+) -> Iterator[Optional[str]]:
+    """Open one Langfuse trace for the whole run (forced to `trace_id`) so every node/agent/
+    tool span nests under it. Yields the project-scoped trace URL (resolved here, in-span, so
+    no warning) or None when Langfuse is disabled/unavailable."""
+    settings = get_settings()
+    if not (settings.langfuse_enabled and trace_id):
+        yield None
+        return
+    try:
+        from langfuse import get_client
+        from langfuse.types import TraceContext
+
+        client = get_client()
+        cm = client.start_as_current_span(
+            name="deep-dd-run", trace_context=TraceContext(trace_id=trace_id)
+        )
+    except Exception:
+        yield None
+        return
+    with cm:
+        url: Optional[str] = None
+        try:
+            client.update_current_trace(
+                session_id=run_id, name=subject, tags=(tags or []) + [subject_type]
+            )
+            url = client.get_trace_url(trace_id=trace_id)  # in-span → no "No active span" warning
+        except Exception:
+            pass
+        yield url
 
 
 def push_eval_scores(run_id: str, verification: Dict[str, Any]) -> None:

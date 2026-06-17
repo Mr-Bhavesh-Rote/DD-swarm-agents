@@ -45,17 +45,26 @@ def _tavily_search(query: str, max_results: int = 5) -> List[Dict[str, Any]]:
         from tavily import TavilyClient
 
         client = TavilyClient(api_key=settings.tavily_api_key)
-        resp = client.search(query=query, max_results=max_results, include_raw_content=False)
+        # search_depth="advanced" + include_raw_content pulls fuller page text (richer
+        # grounding for the verifier and more detail for the writer).
+        resp = client.search(
+            query=query,
+            max_results=max_results,
+            include_raw_content=settings.search_include_raw_content,
+            search_depth=settings.search_depth,
+        )
         out = []
         for r in resp.get("results", []):
+            raw = r.get("raw_content") or ""
             out.append({
                 "title": r.get("title", ""),
                 "url": r.get("url", ""),
                 "snippet": r.get("content", ""),
+                "content": raw[: settings.scrape_max_chars],  # full page text when available
             })
         return out
     except Exception as e:  # network/credential failures are non-fatal to the loop
-        return [{"title": "", "url": "", "snippet": f"[search error] {e}"}]
+        return [{"title": "", "url": "", "snippet": f"[search error] {e}", "content": ""}]
 
 
 # Provider registry so the search backend is swappable.
@@ -64,15 +73,26 @@ SEARCH_PROVIDERS: Dict[str, Callable[[str, int], List[Dict[str, Any]]]] = {
 }
 
 
-def web_search(query: str, ctx: ToolContext, *, provider: str = "tavily", max_results: int = 5) -> List[Dict[str, Any]]:
-    """Search the web; record provenance. Returns [{title,url,snippet}]."""
+def web_search(query: str, ctx: ToolContext, *, provider: str = "tavily", max_results: int | None = None) -> List[Dict[str, Any]]:
+    """Search the web; record provenance (incl. full page content when available)."""
+    settings = get_settings()
+    n = max_results or settings.search_max_results
     fn = SEARCH_PROVIDERS.get(provider, _tavily_search)
-    results = fn(query, max_results)
+    results = fn(query, n)
+    # Store the FULL page content on the source record (for the verifier's grounding), but
+    # return only a COMPACT view to the model — dumping 8×50k chars of raw content into the
+    # transcript on every search is what made research crawl. The agent can scrape_url a
+    # specific page if it needs the full text inline.
+    compact: List[Dict[str, Any]] = []
     for r in results:
         if r.get("url"):
-            ctx.record_source(r["url"], title=r.get("title", ""), snippet=r.get("snippet", ""))
+            ctx.record_source(
+                r["url"], title=r.get("title", ""), snippet=r.get("snippet", ""),
+                content=r.get("content", ""),
+            )
+        compact.append({"title": r.get("title", ""), "url": r.get("url", ""), "snippet": r.get("snippet", "")})
     ctx.record_call("web_search", {"query": query}, f"{len(results)} results")
-    return results
+    return compact
 
 
 def scrape_url(url: str, ctx: ToolContext) -> Dict[str, Any]:
@@ -120,7 +140,7 @@ def _extract_main_text(html: str, url: str) -> tuple[str, str]:
             text = " ".join(soup.get_text(" ").split())
     except Exception:
         pass
-    return text[:20000], title
+    return text[: get_settings().scrape_max_chars], title
 
 
 def read_file(path: str, ctx: ToolContext) -> Dict[str, Any]:
@@ -131,7 +151,7 @@ def read_file(path: str, ctx: ToolContext) -> Dict[str, Any]:
         with open(path, "r", encoding="utf-8", errors="ignore") as f:
             text = f.read()
         ctx.record_call("read_file", {"path": path}, f"{len(text)} chars")
-        return {"path": path, "text": text[:20000]}
+        return {"path": path, "text": text[: get_settings().scrape_max_chars]}
     except Exception as e:
         ctx.record_call("read_file", {"path": path}, f"[read error] {e}")
         return {"path": path, "text": "", "error": str(e)}

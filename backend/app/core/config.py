@@ -40,6 +40,17 @@ class Settings(BaseSettings):
     llm_timeout_seconds: int = Field(default=120, alias="LLM_TIMEOUT_SECONDS")          # Anthropic calls
     llm_max_retries: int = Field(default=2, alias="LLM_MAX_RETRIES")
 
+    # --- Content depth (raise for richer/longer reports; lower to cut cost) ---
+    search_max_results: int = Field(default=8, alias="SEARCH_MAX_RESULTS")              # results per web_search
+    search_depth: str = Field(default="advanced", alias="SEARCH_DEPTH")                    # "basic" (fast) | "advanced" (slower, deeper)
+    search_include_raw_content: bool = Field(default=True, alias="SEARCH_INCLUDE_RAW_CONTENT")  # store full page text (for verifier)
+    scrape_max_chars: int = Field(default=50000, alias="SCRAPE_MAX_CHARS")              # per-page extracted text cap
+    research_max_tokens: int = Field(default=8000, alias="RESEARCH_MAX_TOKENS")         # per research-agent output
+    aggregator_max_tokens: int = Field(default=4000, alias="AGGREGATOR_MAX_TOKENS")
+    synthesizer_max_tokens: int = Field(default=16000, alias="SYNTHESIZER_MAX_TOKENS")  # FINAL report draft
+    verifier_max_tokens: int = Field(default=4000, alias="VERIFIER_MAX_TOKENS")         # per verify batch
+    verifier_source_chars: int = Field(default=6000, alias="VERIFIER_SOURCE_CHARS")     # source text per claim
+
     # --- Database & jobs ---
     database_url: str = Field(
         default="postgresql+asyncpg://user:pass@localhost:5432/deepdd",

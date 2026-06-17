@@ -71,6 +71,36 @@ def test_verifier_claim_extraction_and_coverage():
     assert total == 2 and cited == 1
 
 
+def test_extract_list_tolerates_shape():
+    from workflow.llm import extract_list
+
+    assert extract_list({"buckets": [1, 2]}, "buckets") == [1, 2]
+    assert extract_list([{"a": 1}], "buckets") == [{"a": 1}]  # model returned a bare array
+    assert extract_list({"x": 1}, "buckets") == []
+    assert extract_list(None, "buckets") == []
+    assert extract_list("oops", "buckets") == []
+
+
+def test_research_finalize_tolerates_list_output():
+    # A model returning a JSON array (not the agreed object) must not crash _finalize.
+    from workflow.nodes.research import _finalize
+    from workflow.tools import ToolContext
+    from app.schemas.contracts import AgentSpec
+
+    spec = AgentSpec(name="r", role="R", goal="g")
+    ctx = ToolContext()
+
+    # bare list of finding dicts
+    out = _finalize(spec, "claude-sonnet-4-6", [{"claim": "x", "source_urls": ["u"]}], ctx, 0.0)
+    assert out["findings"] and out["findings"][0]["claim"] == "x"
+    # list wrapping the object
+    out = _finalize(spec, "claude-sonnet-4-6", [{"narrative_markdown": "hi", "findings": []}], ctx, 0.0)
+    assert out["raw_outputs"][0]["narrative_markdown"] == "hi"
+    # garbage
+    out = _finalize(spec, "claude-sonnet-4-6", "oops", ctx, 0.0)
+    assert out["findings"] == []
+
+
 def test_run_request_model_config_alias():
     r = RunRequest.model_validate(
         {"subject_type": "individual", "subject": "Jane Doe", "model_config": {"global_default": "claude-opus-4-8"}}

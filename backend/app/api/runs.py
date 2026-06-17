@@ -16,7 +16,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import current_user, require_role
 from app.core.config import get_settings
 from app.core.events import heartbeat_age, request_cancel, subscribe_events
-from app.core.observability import trace_url
 from app.db.models import Export, Report, Run, RunAgent, SourceRow, WorkflowPlanRow
 from app.db.session import get_db
 from app.schemas.contracts import RunRequest, WorkflowPlan
@@ -206,7 +205,7 @@ async def get_trace(run_id: uuid.UUID, db: AsyncSession = Depends(get_db), _user
     run = await db.get(Run, run_id)
     if not run:
         raise HTTPException(404, "Run not found")
-    return {"trace_url": run.langfuse_trace_id or trace_url(str(run_id))}
+    return {"trace_url": run.langfuse_trace_id or get_settings().langfuse_host}
 
 
 # --------------------------------------------------------------------------------------
@@ -243,10 +242,15 @@ async def export_report(
         data = render_docx(report_row.report_json, report)
         media = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 
+    # Archive the export (best-effort): a storage failure (e.g. unwritable EXPORT_STORAGE_URI)
+    # must NOT block the user's download.
     rel = f"{run_id}/{report}.{format}"
-    uri = store_bytes(rel, data)
-    db.add(Export(run_id=run_id, kind=report, format=format, storage_uri=uri))
-    await db.commit()
+    try:
+        uri = store_bytes(rel, data)
+        db.add(Export(run_id=run_id, kind=report, format=format, storage_uri=uri))
+        await db.commit()
+    except Exception:  # noqa: BLE001
+        await db.rollback()
 
     filename = f"{run.subject[:40].replace('/', '-')}-{report}.{format}"
     return StreamingResponse(

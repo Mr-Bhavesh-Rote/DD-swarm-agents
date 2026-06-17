@@ -19,7 +19,7 @@ import {
   Link as MuiLink,
 } from "@mui/material";
 import DownloadIcon from "@mui/icons-material/Download";
-import { useGetFinalQuery, useGetRawQuery, exportUrl } from "../../api/runsApi";
+import { useGetFinalQuery, useGetRawQuery, downloadExport } from "../../api/runsApi";
 import { useAppDispatch, useAppSelector } from "../../app/store";
 import { setTab, setActiveSection } from "../../features/viewer/viewerSlice";
 import CitationMarkdown from "../CitationLink/CitationLink";
@@ -32,6 +32,8 @@ export default function ReportViewer({ runId, canExport }: { runId: string; canE
   const { data: final } = useGetFinalQuery(runId);
   const { data: raw } = useGetRawQuery(runId);
   const [anchor, setAnchor] = useState<null | HTMLElement>(null);
+  const [busy, setBusy] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
 
   const sources: Source[] = (tab === "raw" ? raw?.sources : final?.sources) ?? [];
 
@@ -47,19 +49,29 @@ export default function ReportViewer({ runId, canExport }: { runId: string; canE
           <Button
             startIcon={<DownloadIcon />}
             variant="contained"
-            disabled={!canExport}
+            disabled={!canExport || busy}
             onClick={(e) => setAnchor(e.currentTarget)}
           >
-            Export
+            {busy ? "Exporting…" : "Export"}
           </Button>
           <Menu anchorEl={anchor} open={!!anchor} onClose={() => setAnchor(null)}>
             {(["final", "raw"] as const).map((r) =>
               (["pdf", "docx"] as const).map((f) => (
                 <MenuItem
                   key={`${r}-${f}`}
-                  component="a"
-                  href={exportUrl(runId, f, r)}
-                  onClick={() => setAnchor(null)}
+                  disabled={busy}
+                  onClick={async () => {
+                    setAnchor(null);
+                    setBusy(true);
+                    setExportError(null);
+                    try {
+                      await downloadExport(runId, f, r);
+                    } catch (err: any) {
+                      setExportError(err?.message ?? "Export failed");
+                    } finally {
+                      setBusy(false);
+                    }
+                  }}
                 >
                   {r.toUpperCase()} → {f.toUpperCase()}
                 </MenuItem>
@@ -71,6 +83,11 @@ export default function ReportViewer({ runId, canExport }: { runId: string; canE
       {!canExport && (
         <Alert severity="info" sx={{ my: 1 }}>
           Export is available once the run status is <strong>done</strong>.
+        </Alert>
+      )}
+      {exportError && (
+        <Alert severity="error" sx={{ my: 1 }} onClose={() => setExportError(null)}>
+          {exportError}
         </Alert>
       )}
       <Divider sx={{ my: 2 }} />

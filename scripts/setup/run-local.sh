@@ -26,9 +26,21 @@ port_open 127.0.0.1 "$REDIS_PORT" || warn "Redis not reachable on :${REDIS_PORT}
 is_running() { local f="$1"; [ -f "$f" ] && kill -0 "$(cat "$f")" 2>/dev/null; }
 start_guard() { local f="$1" name="$2"; if is_running "$f"; then warn "$name already running (pid $(cat "$f")). Run stop-local.sh first."; exit 1; fi; }
 
+workers_running() {
+  [ -f "$RUN_DIR/worker.pids" ] || return 1
+  local p
+  while read -r p; do
+    [ -n "$p" ] && kill -0 "$p" 2>/dev/null && return 0
+  done < "$RUN_DIR/worker.pids"
+  return 1
+}
+
 start_guard "$RUN_DIR/api.pid" "API"
-start_guard "$RUN_DIR/worker.pid" "Worker"
 start_guard "$RUN_DIR/frontend.pid" "Frontend"
+if workers_running; then
+  warn "Worker(s) already running (pids: $(tr '\n' ' ' < "$RUN_DIR/worker.pids")). Run stop-local.sh first."
+  exit 1
+fi
 
 # ------------------------------------------------------------------- backend api+worker
 RELOAD=""; [ "$PROFILE" = "dev" ] && RELOAD="--reload"
@@ -44,11 +56,14 @@ info "Starting backend API on :${API_PORT} ..."
     > "$LOG_DIR/api.log" 2>&1 &
   echo $! > "$RUN_DIR/api.pid"
 
-  info "Starting backend worker ..."
-  nohup python worker.py > "$LOG_DIR/worker.log" 2>&1 &
-  echo $! > "$RUN_DIR/worker.pid"
+  info "Starting ${WORKER_CONCURRENCY} background worker(s) (= max parallel runs) ..."
+  : > "$RUN_DIR/worker.pids"
+  for i in $(seq 1 "$WORKER_CONCURRENCY"); do
+    nohup python worker.py > "$LOG_DIR/worker.$i.log" 2>&1 &
+    echo $! >> "$RUN_DIR/worker.pids"
+  done
 )
-ok "API pid $(cat "$RUN_DIR/api.pid") · worker pid $(cat "$RUN_DIR/worker.pid")"
+ok "API pid $(cat "$RUN_DIR/api.pid") · workers $(tr '\n' ' ' < "$RUN_DIR/worker.pids")"
 
 # -------------------------------------------------------------------------- frontend
 info "Starting frontend dev server on :${UI_PORT} ..."
@@ -65,6 +80,7 @@ echo
 ok "All services starting."
 info "API:      http://localhost:${API_PORT}  (docs: /docs)"
 info "Frontend: http://localhost:${UI_PORT}"
-info "Logs:     $LOG_DIR/{api,worker,frontend}.log"
+info "Workers:  ${WORKER_CONCURRENCY} (max parallel runs) — logs: $LOG_DIR/worker.*.log"
+info "Logs:     $LOG_DIR/{api,frontend}.log"
 info "Verify:   scripts/setup/verify-all.sh $PROFILE"
 info "Stop:     scripts/setup/stop-local.sh"

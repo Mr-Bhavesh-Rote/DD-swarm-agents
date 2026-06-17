@@ -1,5 +1,14 @@
 // Run Detail (§8.1): live swarm view via SSE + cancel/resume + liveness indicator.
-import { Alert, Box, Button, Chip, Stack, Typography, Link as MuiLink } from "@mui/material";
+import {
+  Alert,
+  Box,
+  Button,
+  Chip,
+  CircularProgress,
+  Stack,
+  Typography,
+  Link as MuiLink,
+} from "@mui/material";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   useCancelRunMutation,
@@ -8,7 +17,8 @@ import {
   useResumeRunMutation,
 } from "../api/runsApi";
 import { useRunStream } from "../features/runStream/useRunStream";
-import { useAppSelector } from "../app/store";
+import { useAppDispatch } from "../app/store";
+import { clearRunStream } from "../features/runStream/runStreamSlice";
 import SwarmView from "../components/SwarmView/SwarmView";
 
 const TERMINAL = ["done", "failed", "cancelled"];
@@ -16,31 +26,44 @@ const TERMINAL = ["done", "failed", "cancelled"];
 export default function RunDetail() {
   const { id } = useParams<{ id: string }>();
   const nav = useNavigate();
-  const { data: run } = useGetRunQuery(id!, { pollingInterval: 4000 });
+  const dispatch = useAppDispatch();
+  // Poll the DB status — this is the authoritative lifecycle source (the SSE stream only
+  // feeds live per-agent detail and can lag/close, so it must NOT override this).
+  const { data: run } = useGetRunQuery(id!, { pollingInterval: 3000 });
   const { data: trace } = useGetTraceQuery(id!);
   const [cancelRun] = useCancelRunMutation();
   const [resumeRun, { isLoading: resuming }] = useResumeRunMutation();
-  const streamStatus = useAppSelector((s) => (id ? s.runStream.byRun[id]?.runStatus : undefined));
 
-  const status = streamStatus ?? run?.status ?? "queued";
+  const status = run?.status ?? "queued";
   const active = !TERMINAL.includes(status);
-  useRunStream(id, true);
+  // active flips false->true on resume, which re-runs the effect and reconnects the stream.
+  useRunStream(id, active);
 
-  // Liveness: server reports `alive` (fresh heartbeat) + heartbeat age.
   const alive = run?.alive;
   const hbAge = run?.heartbeat_age;
-  const stalled = active && alive === false; // running status but no worker heartbeat
+  const stalled = active && alive === false;
+
+  const onResume = async () => {
+    if (!id) return;
+    dispatch(clearRunStream(id)); // reset stale agent cards / status before re-running
+    await resumeRun(id);
+  };
 
   return (
     <Box>
       <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
         <Typography variant="h4">{run?.subject}</Typography>
         <Stack direction="row" spacing={1} alignItems="center">
+          {active && <CircularProgress size={20} thickness={5} />}
+          <Chip
+            label={status}
+            color={status === "done" ? "success" : status === "failed" ? "error" : "info"}
+          />
           {active &&
             (alive ? (
-              <Chip color="success" size="small" label={`live · ${Math.round(hbAge ?? 0)}s ago`} />
+              <Chip color="success" size="small" variant="outlined" label={`live · ${Math.round(hbAge ?? 0)}s`} />
             ) : (
-              <Chip color="warning" size="small" label="no worker heartbeat" />
+              <Chip color="warning" size="small" variant="outlined" label="no heartbeat" />
             ))}
           {active && (
             <Button color="error" variant="outlined" onClick={() => id && cancelRun(id)}>
@@ -48,8 +71,8 @@ export default function RunDetail() {
             </Button>
           )}
           {(status === "failed" || status === "cancelled") && (
-            <Button variant="contained" disabled={resuming} onClick={() => id && resumeRun(id)}>
-              Resume
+            <Button variant="contained" disabled={resuming} onClick={onResume}>
+              {resuming ? "Resuming…" : "Resume"}
             </Button>
           )}
           {status === "done" && (
@@ -63,8 +86,8 @@ export default function RunDetail() {
       {stalled && (
         <Alert severity="warning" sx={{ mb: 2 }}>
           This run shows an active status but no worker is updating it (heartbeat
-          {hbAge != null ? ` last seen ${Math.round(hbAge)}s ago` : " missing"}). The worker may
-          have stopped or lost network. It will be marked failed automatically; you can then{" "}
+          {hbAge != null ? ` last seen ${Math.round(hbAge)}s ago` : " missing"}). The worker may have
+          stopped or lost network. It will be marked failed automatically; you can then{" "}
           <strong>Resume</strong> from the last checkpoint.
         </Alert>
       )}
@@ -83,7 +106,7 @@ export default function RunDetail() {
         </Typography>
       )}
 
-      {id && <SwarmView runId={id} />}
+      {id && <SwarmView runId={id} active={active} />}
     </Box>
   );
 }

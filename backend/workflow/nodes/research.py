@@ -42,6 +42,7 @@ def dispatch_research(state: Dict[str, Any]) -> List[Send]:
 
 def _branch_inputs(state: Dict[str, Any]) -> Dict[str, Any]:
     return {
+        "run_id": state.get("run_id", ""),   # needed so the branch can emit a live "running" event
         "subject": state["subject"],
         "subject_type": state["subject_type"],
         "model_config": state.get("model_config", {}),
@@ -60,9 +61,20 @@ def research_agent_node(state: Dict[str, Any], config: Dict[str, Any] | None = N
     model_id = resolve_model(role="research", model_config=model_config, agent_model=spec.model)
     system_prompt = build_research_prompt(spec, subject, subject_type)
 
+    # Emit a live "running" event the moment this agent starts (the node's own completed
+    # event only surfaces when it finishes), so the UI shows it active immediately.
+    run_id = state.get("run_id")
+    if run_id:
+        from app.core.events import publish_event
+
+        publish_event(run_id, {"node": "research_agent", "agent": spec.name,
+                               "status": "running", "model": model_id, "run_id": run_id})
+
+    from app.core.config import get_settings
+
     ctx = ToolContext()
     tool_fns = get_tool_fns(spec.suggested_tools, ctx)
-    llm = make_chat_model(model_id, temperature=0.0, max_tokens=4096)
+    llm = make_chat_model(model_id, temperature=0.0, max_tokens=get_settings().research_max_tokens)
 
     total_cost = 0.0
     transcript: List[Any] = [SystemMessage(content=system_prompt)]
@@ -113,7 +125,7 @@ def research_agent_node(state: Dict[str, Any], config: Dict[str, Any] | None = N
                     # Allow positional single-arg convenience.
                     val = next(iter(args.values()), "")
                     obs = fn(val)
-            transcript.append(HumanMessage(content="TOOL_RESULT " + json.dumps(obs)[:6000]))
+            transcript.append(HumanMessage(content="TOOL_RESULT " + json.dumps(obs)[:12000]))
             continue
 
         transcript.append(HumanMessage(content="Continue researching, then return the final JSON object."))
@@ -134,12 +146,26 @@ def _tool_instructions(subject: str, spec: AgentSpec) -> str:
         f"Research subject: {subject}\n"
         f"To use a tool, respond with ONLY JSON: {{\"tool\": \"web_search\", \"args\": {{\"query\": \"...\"}}}} "
         f"or {{\"tool\": \"scrape_url\", \"args\": {{\"url\": \"...\"}}}}.\n"
+        f"Run MULTIPLE searches from different angles and scrape the most relevant pages to gather "
+        f"primary-source detail (exact figures, dates, names, filings, quotes). Use your full iteration "
+        f"budget before concluding.\n"
         f"When done, respond with ONLY the final JSON object containing 'narrative_markdown' and 'findings'.\n"
-        f"Start by searching for the most relevant public sources."
+        f"Make 'narrative_markdown' a thorough, well-structured account with ALL specifics you found "
+        f"(use markdown tables for structured data); do not summarize away detail. Record a source URL "
+        f"for every factual claim in 'findings'."
     )
 
 
-def _finalize(spec: AgentSpec, model_id: str, parsed: Dict[str, Any], ctx: ToolContext, cost: float) -> Dict[str, Any]:
+def _finalize(spec: AgentSpec, model_id: str, parsed: Any, ctx: ToolContext, cost: float) -> Dict[str, Any]:
+    # The model sometimes returns a JSON array instead of the agreed object. Coerce so we
+    # never crash with "'list' object has no attribute 'get'".
+    if isinstance(parsed, list):
+        # If it's a list of finding dicts, treat it as the findings; if it wraps the object,
+        # take the first dict; otherwise empty.
+        obj = next((x for x in parsed if isinstance(x, dict) and ("narrative_markdown" in x or "findings" in x)), None)
+        parsed = obj if obj is not None else {"findings": [x for x in parsed if isinstance(x, dict)]}
+    if not isinstance(parsed, dict):
+        parsed = {}
     narrative = parsed.get("narrative_markdown", "") or ""
     raw_findings = parsed.get("findings", []) or []
     findings: List[Dict[str, Any]] = []

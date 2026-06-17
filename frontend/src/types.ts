@@ -149,6 +149,12 @@ export interface RunListResponse {
   page_size: number;
 }
 
+export interface ResearchAgentInfo {
+  name: string;
+  role: string;
+  model: string;
+}
+
 export interface ProgressEvent {
   node: string;
   agent?: string;
@@ -160,6 +166,17 @@ export interface ProgressEvent {
   faithfulness_score?: number;
   n_flags?: number;
   needs_revision?: boolean;
+  research_agents?: ResearchAgentInfo[];
   error?: string;
   run_id: string;
+}
+
+// One research-agent card's live state in the swarm view.
+export interface AgentCard {
+  agent: string;
+  role?: string;
+  model?: string;
+  status: "pending" | "running" | "completed" | string;
+  n_findings?: number;
+  n_tool_calls?: number;
 }

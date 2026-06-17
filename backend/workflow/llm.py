@@ -29,6 +29,21 @@ def estimate_cost(model_id: str, in_tokens: int, out_tokens: int) -> float:
     return (in_tokens / 1_000_000) * cin + (out_tokens / 1_000_000) * cout
 
 
+def extract_list(data: Any, key: str) -> list:
+    """Pull a list out of an LLM JSON response, tolerant of shape.
+
+    Models sometimes return the bare array (``[...]``) instead of the agreed
+    ``{"<key>": [...]}`` object. Both are accepted here; anything else yields ``[]`` —
+    so callers never crash with ``'list' object has no attribute 'get'``.
+    """
+    if isinstance(data, dict):
+        v = data.get(key, [])
+        return v if isinstance(v, list) else []
+    if isinstance(data, list):
+        return data
+    return []
+
+
 def _extract_json(text: str) -> Any:
     """Best-effort JSON extraction from a model response."""
     text = text.strip()

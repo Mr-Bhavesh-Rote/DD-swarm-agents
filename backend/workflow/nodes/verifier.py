@@ -13,7 +13,7 @@ from typing import Any, Dict, List, Tuple
 
 from app.core.config import get_settings
 from app.core.prompts import build_verifier_prompt
-from workflow.llm import invoke_json
+from workflow.llm import extract_list, invoke_json
 from workflow.models import resolve_model
 
 # Verify at most this many claims per LLM call so the JSON response stays within
@@ -60,9 +60,10 @@ def verifier_node(state: Dict[str, Any], config: Dict[str, Any] | None = None) -
         for start in range(0, len(claims), _VERIFY_BATCH):
             batch = claims[start : start + _VERIFY_BATCH]
             payload = _build_verifier_payload(batch, sources_by_id)
-            result = invoke_json(verifier_model, sys, payload, callbacks=callbacks, max_tokens=4000)
+            result = invoke_json(verifier_model, sys, payload, callbacks=callbacks,
+                                 max_tokens=settings.verifier_max_tokens)
             cost += result["cost_usd"]
-            for r in (result["data"] or {}).get("results", []):
+            for r in extract_list(result["data"], "results"):
                 # Tolerant matching: accept an explicit integer claim_index, and also key by
                 # the echoed claim text, so verdicts map back regardless of the exact
                 # verifier-prompt version in use (e.g. a prior version in the Langfuse registry).
@@ -154,11 +155,12 @@ def _build_verifier_payload(claims: List[Dict[str, Any]], sources_by_id: Dict[in
         "Verify each of the following claims against its cited source text. "
         "Return one result per claim index.\n"
     ]
+    cap = get_settings().verifier_source_chars
     for i, c in enumerate(claims):
         lines.append(f"CLAIM {i} [section={c['section_id']}]: {c['text']}")
         for cid in c["citation_ids"]:
             src = sources_by_id.get(cid, {})
-            text = (src.get("content") or src.get("snippet") or "")[:3000]
+            text = (src.get("content") or src.get("snippet") or "")[:cap]
             lines.append(f"  SOURCE [{cid}] {src.get('url','')}:\n  {text}")
         lines.append("")
     return "\n".join(lines)

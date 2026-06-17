@@ -109,8 +109,10 @@ else
   fi
 fi
 
-info "Patching DEV env (CORS, JWT secret, frontend API URL) ..."
+info "Patching DEV env (CORS, JWT secret, exports path, frontend API URL) ..."
 set_env_key "$BE_DEV" "CORS_ALLOWED_ORIGINS" "http://localhost:${UI_PORT}"
+# Default /var/deepdd is only writable inside the Docker volume; use a local dir for dev.
+set_env_key "$BE_DEV" "EXPORT_STORAGE_URI" "file://${RUN_DIR}/exports"
 if [ -z "$(get_env_value "$BE_DEV" JWT_SECRET || true)" ]; then
   set_env_key "$BE_DEV" "JWT_SECRET" "$(gen_secret)"
   ok "Generated a DEV JWT_SECRET."

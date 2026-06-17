@@ -9,7 +9,7 @@ from __future__ import annotations
 from typing import Any, Dict, List
 
 from app.core.prompts import build_synthesizer_prompt
-from workflow.llm import invoke_json
+from workflow.llm import extract_list, invoke_json
 from workflow.models import resolve_model
 
 # Required FINAL sections per subject type (§4.4).
@@ -65,9 +65,11 @@ def synthesizer_node(state: Dict[str, Any], config: Dict[str, Any] | None = None
     sys = build_synthesizer_prompt(subject, subject_type, task, revision_feedback)
     user = _build_user_payload(state, subject_type)
 
-    result = invoke_json(writer_model, sys, user, callbacks=callbacks, max_tokens=8000)
-    data = result["data"] or {}
-    sections = _normalize_sections(data.get("sections", []), subject_type)
+    from app.core.config import get_settings
+
+    result = invoke_json(writer_model, sys, user, callbacks=callbacks,
+                         max_tokens=get_settings().synthesizer_max_tokens)
+    sections = _normalize_sections(extract_list(result["data"], "sections"), subject_type)
 
     return {
         "draft_sections": sections,
@@ -82,13 +84,27 @@ def synthesizer_node(state: Dict[str, Any], config: Dict[str, Any] | None = None
 def _build_user_payload(state: Dict[str, Any], subject_type: str) -> str:
     findings = state.get("aggregated_findings", [])
     sources = state.get("sources", [])
-    lines = ["FINDINGS (claim -> source ids):"]
+    lines: List[str] = []
+
+    # 1. Full per-agent narratives — the raw detail to PRESERVE in the final report.
+    raw_outputs = state.get("raw_outputs", [])
+    if raw_outputs:
+        lines.append("RAW PER-AGENT RESEARCH (preserve all material detail from these):")
+        for ao in raw_outputs:
+            lines.append(f"\n### {ao.get('role') or ao.get('agent','')}")
+            lines.append(ao.get("narrative_markdown", "") or "")
+
+    # 2. Deduped findings with their resolved citation ids.
+    lines.append("\nCONSOLIDATED FINDINGS (claim -> source ids):")
     for f in findings:
         cat = f.get("category") or "uncategorized"
         lines.append(f"- ({cat}, {f.get('confidence')}) {f['claim']}  -> {f.get('source_ids')}")
-    lines.append("\nGLOBAL SOURCE LIST (id: url — title):")
+
+    # 3. Global source list (id -> url) for citation.
+    lines.append("\nGLOBAL SOURCE LIST (cite ONLY these ids as [n]):")
     for s in sources:
         lines.append(f"  [{s['id']}] {s['url']} — {s.get('title','')}")
+
     secs = required_sections(subject_type)
     lines.append("\nREQUIRED SECTIONS (use these exact ids/titles):")
     for sid, title in secs:

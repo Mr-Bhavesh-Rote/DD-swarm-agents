@@ -16,6 +16,9 @@ API_PORT="${API_PORT:-8000}"
 UI_PORT="${UI_PORT:-5173}"
 DB_PORT="${DB_PORT:-5432}"
 REDIS_PORT="${REDIS_PORT:-6379}"
+# Number of worker processes = max runs that execute in parallel (RQ gives each worker
+# one job at a time). Override: WORKER_CONCURRENCY=3 scripts/setup/run-local.sh
+WORKER_CONCURRENCY="${WORKER_CONCURRENCY:-3}"
 
 # --- logging ---
 if [ -t 1 ]; then

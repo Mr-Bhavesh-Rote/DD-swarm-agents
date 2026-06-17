@@ -10,9 +10,10 @@ from __future__ import annotations
 
 from typing import Any, Dict, List
 
+from app.core.config import get_settings
 from app.core.prompts import build_aggregator_prompt
 from workflow.citations import CitationRegistry
-from workflow.llm import invoke_json
+from workflow.llm import extract_list, invoke_json
 from workflow.models import resolve_model
 
 
@@ -63,9 +64,10 @@ def aggregator_node(state: Dict[str, Any], config: Dict[str, Any] | None = None)
             f"[{i}] ({f['category'] or 'uncategorized'}) {f['claim']}" for i, f in enumerate(deduped)
         )
         try:
-            result = invoke_json(agg_model, sys, enumerated, callbacks=callbacks, max_tokens=3000)
+            result = invoke_json(agg_model, sys, enumerated, callbacks=callbacks,
+                                 max_tokens=get_settings().aggregator_max_tokens)
             cost = result["cost_usd"]
-            raw_buckets = (result["data"] or {}).get("buckets", [])
+            raw_buckets = extract_list(result["data"], "buckets")
             for b in raw_buckets:
                 idxs = [i for i in b.get("finding_indexes", []) if isinstance(i, int) and 0 <= i < len(deduped)]
                 # Stamp category/severity back onto findings.

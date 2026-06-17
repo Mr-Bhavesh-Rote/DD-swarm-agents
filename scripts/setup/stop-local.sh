@@ -42,7 +42,24 @@ free_port() {  # <port> <name>
 
 info "Stopping local services ..."
 kill_pidfile "$RUN_DIR/api.pid"      "API"
-kill_pidfile "$RUN_DIR/worker.pid"   "Worker"
+kill_pidfile "$RUN_DIR/worker.pid"   "Worker"  # legacy single-worker pid (if present)
+
+# Worker pool: one pid per line in worker.pids.
+if [ -f "$RUN_DIR/worker.pids" ]; then
+  i=0
+  while read -r pid; do
+    [ -z "$pid" ] && continue
+    i=$((i + 1))
+    if kill -0 "$pid" 2>/dev/null; then
+      kill "$pid" 2>/dev/null || true
+      sleep 0.3
+      kill -9 "$pid" 2>/dev/null || true
+      ok "Stopped Worker #$i (pid $pid)."
+    fi
+  done < "$RUN_DIR/worker.pids"
+  rm -f "$RUN_DIR/worker.pids"
+fi
+
 kill_pidfile "$RUN_DIR/frontend.pid" "Frontend"
 
 # Fallback: clean up any leftover listeners (uvicorn --reload / vite child procs).

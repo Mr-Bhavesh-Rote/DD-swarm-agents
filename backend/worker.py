@@ -53,16 +53,20 @@ if __name__ == "__main__":
     from rq import SimpleWorker, Worker
 
     settings = get_settings()
+    conn = Redis.from_url(settings.redis_url)
+
     # Recover runs that were mid-flight when a previous worker died (network failure /
     # crash): mark them failed so they can be resumed, instead of hanging forever.
+    # A Redis lock ensures only ONE worker reconciles at startup (when running a pool of
+    # workers for parallel runs), so it can't race another worker's in-flight job.
     try:
-        from workflow.runner import reconcile_orphaned_runs
+        if conn.set("deepdd:reconcile:lock", "1", nx=True, ex=20):
+            from workflow.runner import reconcile_orphaned_runs
 
-        reconcile_orphaned_runs()
+            reconcile_orphaned_runs()
     except Exception as e:  # noqa: BLE001
         print(f"[worker] reconcile skipped: {e}")
 
-    conn = Redis.from_url(settings.redis_url)
     force = os.getenv("DEEPDD_WORKER_CLASS", "").lower()
     if force == "fork":
         worker_cls = Worker

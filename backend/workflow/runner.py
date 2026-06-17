@@ -16,7 +16,7 @@ from sqlalchemy import delete, select
 
 from app.core.config import get_settings
 from app.core.events import clear_heartbeat, heartbeat, is_cancelled, publish_event
-from app.core.observability import get_langfuse_handler, push_eval_scores, trace_config, trace_url
+from app.core.observability import compute_trace, get_langfuse_handler, push_eval_scores, run_trace
 from app.core.prompts import register_templates
 from app.db.models import FindingRow, Report, Run, RunAgent, SourceRow, WorkflowPlanRow
 from app.db.session import sync_session
@@ -87,12 +87,14 @@ def execute_run(run_id: str) -> None:
         subject, subject_type, task = run.subject, run.subject_type, run.task
         model_config = run.model_config_json or {}
         plan_override = run.plan.plan if (run.plan and run.plan.is_generated is False and run.plan.plan and run.plan.plan.get("_edited")) else None
+        trace_id, trace_link = compute_trace(run_id)  # deterministic id + provisional URL
         run.status = "planning"
         run.error = None  # clear any error from a prior attempt
-        run.langfuse_trace_id = trace_url(run_id)
+        run.langfuse_trace_id = trace_link
         db.commit()
 
     handler = get_langfuse_handler(run_id=run_id, subject=subject, subject_type=subject_type, tags=["deep-dd"])
+    heartbeat(run_id, ttl=30)       # set synchronously NOW so reconcile never races this job
     hb_stop = _start_heartbeat(run_id)
 
     saver, cp_conn = _checkpointer()
@@ -100,7 +102,7 @@ def execute_run(run_id: str) -> None:
     config: Dict[str, Any] = {
         "recursion_limit": settings.recursion_limit,
         "configurable": {"thread_id": run_id},
-        **trace_config(handler, run_id=run_id, subject=subject, subject_type=subject_type, tags=["deep-dd"]),
+        "callbacks": [handler] if handler else [],
     }
 
     # Resume from the last checkpoint if this run was interrupted partway (pending nodes
@@ -125,19 +127,28 @@ def execute_run(run_id: str) -> None:
     error: Optional[str] = None
     cancelled = False
     try:
-        # Dual stream: "updates" gives per-node/per-agent deltas for LIVE progress (each
-        # research branch reports as it finishes); "values" gives the accumulated state.
-        for mode, chunk in graph.stream(graph_input, config=config, stream_mode=["updates", "values"]):
-            if mode == "values":
-                final_state = chunk
-                if is_cancelled(run_id):
-                    cancelled = True
-                    break
-                _budget_guard(run_id, chunk)
-            else:  # "updates": {node_name: partial_state_update}
-                _handle_updates(run_id, chunk)
+        # One Langfuse trace per run wraps the whole graph; node/agent/tool spans nest under it.
+        with run_trace(trace_id, run_id=run_id, subject=subject, subject_type=subject_type, tags=["deep-dd"]) as resolved_url:
+            if resolved_url and resolved_url != trace_link:
+                _set_trace_link(run_id, resolved_url)  # upgrade provisional URL to the real one
+            # Dual stream: "updates" gives per-node/per-agent deltas for LIVE progress (each
+            # research branch reports as it finishes); "values" gives the accumulated state.
+            for mode, chunk in graph.stream(graph_input, config=config, stream_mode=["updates", "values"]):
+                if mode == "values":
+                    final_state = chunk
+                    if is_cancelled(run_id):
+                        cancelled = True
+                        break
+                    _budget_guard(run_id, chunk)
+                else:  # "updates": {node_name: partial_state_update}
+                    _handle_updates(run_id, chunk)
     except Exception as e:  # noqa: BLE001
+        import traceback
+
         error = str(e)
+        # Log the full stack to the worker log so failures are diagnosable (the DB/UI only
+        # carry the short message).
+        print(f"[run {run_id}] FAILED: {error}\n{traceback.format_exc()}", flush=True)
     finally:
         hb_stop.set()
         clear_heartbeat(run_id)
@@ -268,6 +279,14 @@ def _persist_outputs(run_id: str, state: Dict[str, Any], *, status: str, error: 
         run.cost_usd = float(state.get("cost_usd", 0.0))
         run.finished_at = datetime.now(timezone.utc)
         db.commit()
+
+
+def _set_trace_link(run_id: str, url: str) -> None:
+    with sync_session() as db:
+        run = db.get(Run, _as_uuid(run_id))
+        if run:
+            run.langfuse_trace_id = url
+            db.commit()
 
 
 def _mark(run_id: str, status: str, error: Optional[str] = None) -> None:

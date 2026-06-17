@@ -57,12 +57,19 @@ def planner_node(state: Dict[str, Any], config: Dict[str, Any] | None = None) ->
 def _emit(plan, model_config: Dict[str, Any], *, is_generated: bool, event: Dict[str, Any]) -> Dict[str, Any]:
     plan_dict = plan.model_dump()
     plan_dict["_is_generated"] = is_generated
+    # The research swarm = agents that search/scrape. The UI pre-populates a card per
+    # research agent (as "pending") so the whole swarm is visible the moment planning ends.
+    research_agents = [
+        {"name": a.name, "role": a.role, "model": a.model or ""}
+        for a in plan.research_agents()
+    ]
     return {
         "plan": plan_dict,
         "revision_count": 0,
         "events": [
             {**event, "status": "completed",
              "n_agents": len(plan.agents),
-             "agents": [a.name for a in plan.agents]}
+             "agents": [a.name for a in plan.agents],
+             "research_agents": research_agents}
         ],
     }

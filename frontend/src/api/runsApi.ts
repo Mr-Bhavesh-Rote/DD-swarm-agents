@@ -66,6 +66,41 @@ export const runsApi = createApi({
 export const exportUrl = (id: string, format: "pdf" | "docx", report: "raw" | "final") =>
   `${API_BASE}/api/runs/${id}/export?format=${format}&report=${report}`;
 
+// Download an export with the auth header attached (a plain <a href> can't send the
+// bearer token, which is why direct links returned 401). Fetches the file as a blob and
+// triggers a save, keeping the JWT out of the URL/server logs.
+export async function downloadExport(
+  id: string,
+  format: "pdf" | "docx",
+  report: "raw" | "final",
+): Promise<void> {
+  const token = localStorage.getItem("token") ?? "";
+  const resp = await fetch(exportUrl(id, format, report), {
+    headers: { authorization: `Bearer ${token}` },
+  });
+  if (!resp.ok) {
+    let detail = `Export failed (${resp.status})`;
+    try {
+      detail = (await resp.json())?.detail ?? detail;
+    } catch {
+      /* non-JSON error body */
+    }
+    throw new Error(detail);
+  }
+  const blob = await resp.blob();
+  const disposition = resp.headers.get("content-disposition") ?? "";
+  const match = /filename="?([^"]+)"?/.exec(disposition);
+  const filename = match?.[1] ?? `${report}.${format}`;
+  const objectUrl = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = objectUrl;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(objectUrl);
+}
+
 export const streamUrl = (id: string) => `${API_BASE}/api/runs/${id}/stream`;
 
 export const {
