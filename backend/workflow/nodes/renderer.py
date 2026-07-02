@@ -38,6 +38,7 @@ def renderer_node(state: Dict[str, Any], config: Dict[str, Any] | None = None) -
         ids = sorted({int(x) for x in cite_re.findall(sec.get("body_markdown", "") or "")})
         sec["citations"] = ids
 
+    source_manifest = _build_source_manifest(state)
     final_report = {
         "run_id": run_id,
         "subject": subject,
@@ -45,6 +46,7 @@ def renderer_node(state: Dict[str, Any], config: Dict[str, Any] | None = None) -
         "generated_at": now,
         "model_summary": state.get("model_summary", {}),
         "verification": state.get("verification", {"citation_coverage": 0.0, "faithfulness_score": 0.0, "flags": []}),
+        "source_manifest": source_manifest,
         "sections": sections,
         "sources": wire_sources,
     }
@@ -55,6 +57,30 @@ def renderer_node(state: Dict[str, Any], config: Dict[str, Any] | None = None) -
         "events": [{"node": "renderer", "status": "completed",
                     "n_sections": len(sections), "n_sources": len(wire_sources)}],
     }
+
+
+def _build_source_manifest(state: Dict[str, Any]) -> Dict[str, Any]:
+    """Aggregate which compliance-source tools were called across all research agents.
+    Keyed by agent domain so template and AI-tailored runs produce comparable manifests."""
+    from workflow.nodes.research import REQUIRED_TOOLS_BY_DOMAIN
+
+    # Map domain -> set of tools called by agents of that domain.
+    called_by_domain: Dict[str, set] = {}
+    for ao in state.get("raw_outputs", []) or []:
+        domain = ao.get("domain") or "overview_ownership"
+        called_by_domain.setdefault(domain, set()).update(
+            c.get("tool") for c in (ao.get("tool_calls") or [])
+        )
+
+    manifest: Dict[str, Any] = {}
+    for domain, required in REQUIRED_TOOLS_BY_DOMAIN.items():
+        called = called_by_domain.get(domain, set())
+        for tool in required:
+            manifest[tool] = {
+                "required_by": domain,
+                "attempted": tool in called,
+            }
+    return manifest
 
 
 def render_markdown(report: Dict[str, Any], kind: str) -> str:
@@ -79,6 +105,16 @@ def _final_markdown(report: Dict[str, Any]) -> str:
             lines.append("")
             lines.append(_md_table(t))
         lines.append("")
+    lines.append("## Sources Queried")
+    manifest = report.get("source_manifest", {})
+    if manifest:
+        for tool, info in sorted(manifest.items()):
+            status = "queried" if info.get("attempted") else "NOT queried"
+            lines.append(f"- **{tool}** ({info.get('required_by', '')}): {status}")
+    else:
+        lines.append("- No source manifest recorded.")
+    lines.append("")
+
     lines.append("## References")
     for s in report.get("sources", []):
         lines.append(f"[{s['id']}] [{s.get('title') or s['url']}]({s['url']})")

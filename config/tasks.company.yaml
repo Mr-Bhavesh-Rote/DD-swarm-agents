@@ -3,32 +3,32 @@
 # agents.company.yaml) and declares its `depends_on` edges and `expected_output`.
 # The loader merges agents + tasks into the normalized WorkflowPlan (§5.2).
 
-profile_research:
-  agent: company_profile_researcher
+overview_ownership_research:
+  agent: overview_ownership_researcher
   depends_on: []
-  expected_output: findings[] with source_urls + narrative_markdown covering business model, footprint and founding history.
+  expected_output: findings[] with source_urls + narrative_markdown covering brief subject overview, corporate structure, ownership, key management, and any state/political ties or PEP exposure.
 
-ownership_research:
-  agent: ownership_governance_researcher
+sanctions_legal_research:
+  agent: sanctions_legal_researcher
   depends_on: []
-  expected_output: findings[] with source_urls + narrative_markdown covering corporate structure, shareholding, board and PEP exposure.
+  expected_output: findings[] with source_urls + narrative_markdown covering sanctions/export-controls, AML, litigation, criminal cases, and regulatory enforcement with dates/jurisdictions/status.
 
-financial_research:
-  agent: financial_performance_researcher
+adverse_conduct_research:
+  agent: adverse_conduct_researcher
   depends_on: []
-  expected_output: findings[] with source_urls + narrative_markdown covering revenue, funding, valuation and reported financials.
+  expected_output: findings[] with source_urls + narrative_markdown covering corruption/bribery/fraud, human-rights/labor abuses, and controversial/dual-use/military products and end-use.
 
-legal_regulatory_research:
-  agent: legal_regulatory_researcher
+adverse_media_esg_research:
+  agent: adverse_media_esg_researcher
   depends_on: []
-  expected_output: findings[] with source_urls + narrative_markdown covering filings, litigation, sanctions, AML and jurisdictional risk.
+  expected_output: findings[] with source_urls + narrative_markdown covering adverse media, reputational controversies, environmental harm/ESG, and risky counterparty/jurisdictional exposure.
 
-reputation_media_research:
-  agent: reputation_media_researcher
+pep_ownership_risk_research:
+  agent: pep_ownership_risk_researcher
   depends_on: []
-  expected_output: findings[] with source_urls + narrative_markdown covering adverse media, ESG and counterparty concerns.
+  expected_output: findings[] with source_urls + narrative_markdown covering politically exposed persons, state-owned enterprise ties, and ownership structures indicating heightened risk.
 
 risk_aggregation:
   agent: risk_aggregator
-  depends_on: [legal_regulatory_research, reputation_media_research]
-  expected_output: risk findings bucketed by category with severity.
+  depends_on: [sanctions_legal_research, adverse_conduct_research, adverse_media_esg_research]
+  expected_output: derogatory/adverse findings bucketed by risk category with severity ratings.

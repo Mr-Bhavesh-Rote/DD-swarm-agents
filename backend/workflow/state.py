@@ -26,6 +26,8 @@ class GraphState(TypedDict, total=False):
     model_config: Dict[str, Any]   # {global_default, role_overrides}
     plan_override: Optional[Dict[str, Any]]
     uploaded_file_ids: List[str]
+    planning_mode: str             # "template" | "ai"
+    max_research_agents: Optional[int]   # per-run cap on the AI swarm (None = system default)
 
     # --- planner output ---
     plan: Dict[str, Any]           # normalized WorkflowPlan dict

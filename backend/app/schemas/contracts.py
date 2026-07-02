@@ -8,10 +8,18 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, Dict, List, Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 SubjectType = Literal["company", "individual"]
 Confidence = Literal["high", "medium", "low"]
+PlanningMode = Literal["template", "ai"]
+AgentDomain = Literal[
+    "overview_ownership",
+    "sanctions_legal",
+    "adverse_conduct",
+    "adverse_media_esg",
+    "pep_ownership_risk",
+]
 
 
 # --- 5.1 RunRequest (UI -> API) ---
@@ -27,8 +35,29 @@ class RunRequest(BaseModel):
     model_config_: ModelConfig = Field(default_factory=ModelConfig, alias="model_config")
     plan_override: Optional["WorkflowPlan"] = None
     uploaded_file_ids: List[str] = Field(default_factory=list)
+    # "template" = deterministic YAML swarm (cheap); "ai" = orchestrator builds a custom
+    # swarm from the task. max_research_agents caps the AI swarm (None = system default).
+    planning_mode: PlanningMode = "template"
+    max_research_agents: Optional[int] = Field(default=5, ge=1, le=16)
+
+    @field_validator("planning_mode", mode="before")
+    @classmethod
+    def _coerce_planning_mode(cls, v):
+        return v if v else "template"
 
     model_config = {"populate_by_name": True}  # type: ignore[assignment]
+
+
+# --- 5.1b Task refine (plain English -> structured task prompt) ---
+class TaskRefineRequest(BaseModel):
+    subject_type: SubjectType
+    subject: str = ""
+    query: str  # the analyst's plain-English ask
+
+
+class TaskRefineResponse(BaseModel):
+    task: str
+    cost_usd: float = 0.0
 
 
 # --- 5.2 WorkflowPlan ---
@@ -36,6 +65,7 @@ class AgentSpec(BaseModel):
     name: str
     role: str
     goal: str
+    domain: AgentDomain = "overview_ownership"
     rationale: str = ""
     depends_on: List[str] = Field(default_factory=list)
     max_iterations: int = 10

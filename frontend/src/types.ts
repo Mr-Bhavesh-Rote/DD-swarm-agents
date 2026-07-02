@@ -2,6 +2,7 @@
 
 export type SubjectType = "company" | "individual";
 export type Confidence = "high" | "medium" | "low";
+export type PlanningMode = "template" | "ai";
 
 export interface ModelConfig {
   global_default?: string;
@@ -15,9 +16,17 @@ export interface ModelCatalogEntry {
   recommended_roles: string[];
 }
 
+export type AgentDomain =
+  | "overview_ownership"
+  | "sanctions_legal"
+  | "adverse_conduct"
+  | "adverse_media_esg"
+  | "pep_ownership_risk";
+
 export interface AgentSpec {
   name: string;
   role: string;
+  domain: AgentDomain;
   goal: string;
   rationale?: string;
   depends_on: string[];
@@ -41,6 +50,19 @@ export interface RunRequest {
   model_config: ModelConfig;
   plan_override?: WorkflowPlan | null;
   uploaded_file_ids: string[];
+  planning_mode: PlanningMode;
+  max_research_agents?: number | null;
+}
+
+export interface TaskRefineRequest {
+  subject_type: SubjectType;
+  subject: string;
+  query: string;
+}
+
+export interface TaskRefineResponse {
+  task: string;
+  cost_usd: number;
 }
 
 export interface Source {
@@ -112,6 +134,11 @@ export interface Verification {
   }>;
 }
 
+export interface SourceManifestEntry {
+  required_by: string;
+  attempted: boolean;
+}
+
 export interface FinalReport {
   run_id: string;
   subject: string;
@@ -119,6 +146,7 @@ export interface FinalReport {
   generated_at: string;
   model_summary: Record<string, string>;
   verification: Verification;
+  source_manifest: Record<string, SourceManifestEntry>;
   sections: ReportSection[];
   sources: Source[];
 }

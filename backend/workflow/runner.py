@@ -16,7 +16,13 @@ from sqlalchemy import delete, select
 
 from app.core.config import get_settings
 from app.core.events import clear_heartbeat, heartbeat, is_cancelled, publish_event
-from app.core.observability import compute_trace, get_langfuse_handler, push_eval_scores, resolve_trace_url, run_trace
+from app.core.observability import (
+    compute_trace,
+    get_langfuse_handler,
+    push_eval_scores,
+    resolve_trace_url,
+    run_trace,
+)
 from app.core.prompts import register_templates
 from app.db.models import FindingRow, Report, Run, RunAgent, SourceRow, WorkflowPlanRow
 from app.db.session import sync_session
@@ -46,7 +52,7 @@ def _checkpointer():
         # context manager would close it as soon as it goes out of scope). Autocommit is
         # required by the PostgresSaver.
         sync_url = settings.database_url.replace("+asyncpg", "").replace("+psycopg", "")
-        conn = psycopg.connect(sync_url, autocommit=True)
+        conn = psycopg.connect(sync_url, autocommit=True, prepare_threshold=None)
         saver = PostgresSaver(conn)
         saver.setup()
         return saver, conn
@@ -86,7 +92,15 @@ def execute_run(run_id: str) -> None:
             return
         subject, subject_type, task = run.subject, run.subject_type, run.task
         model_config = run.model_config_json or {}
-        plan_override = run.plan.plan if (run.plan and run.plan.is_generated is False and run.plan.plan and run.plan.plan.get("_edited")) else None
+        planning_mode = run.planning_mode or "template"
+        max_research_agents = run.max_research_agents
+        user_id = str(run.created_by) if run.created_by else None
+        initial_cost = float(run.cost_usd or 0.0)  # e.g. AI planning spent at create time
+        # Use the stored plan verbatim (skip re-planning) when it was either hand-edited OR
+        # generated+approved at create time (AI mode). Plain template rows are left to the
+        # planner to (re)load deterministically.
+        _stored = run.plan.plan if (run.plan and run.plan.plan) else None
+        plan_override = _stored if (_stored and (_stored.get("_edited") or run.plan.is_generated)) else None
         trace_id, trace_link = compute_trace(run_id)  # deterministic id + provisional URL
         run.status = "planning"
         run.error = None  # clear any error from a prior attempt
@@ -120,35 +134,97 @@ def execute_run(run_id: str) -> None:
         graph_input = initial_state(
             run_id=run_id, subject=subject, subject_type=subject_type, task=task,
             model_config=model_config, plan_override=plan_override,
+            planning_mode=planning_mode, max_research_agents=max_research_agents,
         )
+        graph_input["cost_usd"] = initial_cost  # carry create-time planning cost into the total
         publish_event(run_id, {"node": "run", "status": "planning", "run_id": run_id})
 
     final_state: Dict[str, Any] = {}
     error: Optional[str] = None
     cancelled = False
+    terminal = "failed"
+    trace_output: Dict[str, Any] = {}
     try:
         # One Langfuse trace per run wraps the whole graph; node/agent/tool spans nest under it.
-        with run_trace(trace_id, run_id=run_id, subject=subject, subject_type=subject_type, tags=["deep-dd"]) as resolved_url:
+        # We pass an output dict that run_trace attaches right before the trace closes, so the
+        # final status/verification is always captured without "No active span" warnings.
+        with run_trace(
+            trace_id,
+            run_id=run_id,
+            subject=subject,
+            subject_type=subject_type,
+            task=task,
+            user_id=user_id,
+            tags=["deep-dd"],
+            metadata={
+                "planning_mode": planning_mode,
+                "model_config": model_config,
+                "max_research_agents": max_research_agents,
+            },
+            output=trace_output,
+        ) as resolved_url:
             if resolved_url and resolved_url != trace_link:
                 _set_trace_link(run_id, resolved_url)  # upgrade provisional URL to the real one
-            # Dual stream: "updates" gives per-node/per-agent deltas for LIVE progress (each
-            # research branch reports as it finishes); "values" gives the accumulated state.
-            for mode, chunk in graph.stream(graph_input, config=config, stream_mode=["updates", "values"]):
-                if mode == "values":
-                    final_state = chunk
-                    if is_cancelled(run_id):
-                        cancelled = True
-                        break
-                    _budget_guard(run_id, chunk)
-                else:  # "updates": {node_name: partial_state_update}
-                    _handle_updates(run_id, chunk)
-    except Exception as e:  # noqa: BLE001
-        import traceback
+            try:
+                # Dual stream: "updates" gives per-node/per-agent deltas for LIVE progress (each
+                # research branch reports as it finishes); "values" gives the accumulated state.
+                for mode, chunk in graph.stream(graph_input, config=config, stream_mode=["updates", "values"]):
+                    if mode == "values":
+                        final_state = chunk
+                        if is_cancelled(run_id):
+                            cancelled = True
+                            break
+                        _budget_guard(run_id, chunk)
+                    else:  # "updates": {node_name: partial_state_update}
+                        _handle_updates(run_id, chunk)
+            except Exception as e:  # noqa: BLE001
+                import traceback
 
-        error = str(e)
-        # Log the full stack to the worker log so failures are diagnosable (the DB/UI only
-        # carry the short message).
-        print(f"[run {run_id}] FAILED: {error}\n{traceback.format_exc()}", flush=True)
+                error = str(e)
+                # Log the full stack to the worker log so failures are diagnosable (the DB/UI only
+                # carry the short message).
+                print(f"[run {run_id}] FAILED: {error}\n{traceback.format_exc()}", flush=True)
+            finally:
+                # Persist whatever was produced — even on failure/cancel — so completed research,
+                # sources and findings are never lost (child tables populate from the reducer channels).
+                terminal = "cancelled" if cancelled else ("failed" if error else "done")
+                # Compliance quality gate: a report with very low source-grounding must not be
+                # auto-published as "done".
+                if terminal == "done":
+                    faith = float(final_state.get("final_report", {}).get("verification", {}).get("faithfulness_score", 1.0))
+                    if faith < get_settings().revision_min_faithfulness:
+                        terminal = "needs_review"
+                # Defensive fallback: if the stream's final_state does not contain the rendered
+                # reports (observed when the run ends abruptly or after a resume), read the latest
+                # checkpoint state and merge the missing channels.
+                if not final_state.get("raw_report") or not final_state.get("final_report"):
+                    try:
+                        snap = saver.get(config)
+                        cv = snap.get("channel_values", {}) if snap else {}
+                        if cv.get("raw_report"):
+                            final_state["raw_report"] = cv["raw_report"]
+                        if cv.get("final_report"):
+                            final_state["final_report"] = cv["final_report"]
+                        if cv.get("sources"):
+                            final_state.setdefault("sources", cv["sources"])
+                        if cv.get("aggregated_findings"):
+                            final_state.setdefault("aggregated_findings", cv["aggregated_findings"])
+                        if cv.get("raw_outputs"):
+                            final_state.setdefault("raw_outputs", cv["raw_outputs"])
+                    except Exception:
+                        pass
+                _persist_outputs(run_id, final_state, status=terminal, error=error)
+
+                # Populate the trace output dict while the run_trace context manager is still
+                # active. run_trace's __exit__ will attach this to the trace and flush before
+                # closing the span.
+                trace_output["status"] = terminal
+                trace_output["run_id"] = run_id
+                if terminal == "done":
+                    trace_output["verification"] = final_state.get("final_report", {}).get("verification", {})
+                    trace_output["n_sections"] = len(final_state.get("draft_sections", []))
+                if error:
+                    trace_output["error"] = error
     finally:
         hb_stop.set()
         clear_heartbeat(run_id)
@@ -160,11 +236,6 @@ def execute_run(run_id: str) -> None:
             final_url = resolve_trace_url(trace_id)
             if final_url and final_url != trace_link:
                 _set_trace_link(run_id, final_url)
-
-    # Persist whatever was produced — even on failure/cancel — so completed research,
-    # sources and findings are never lost (child tables populate from the reducer channels).
-    terminal = "cancelled" if cancelled else ("failed" if error else "done")
-    _persist_outputs(run_id, final_state, status=terminal, error=error)
 
     if terminal == "done":
         push_eval_scores(run_id, final_state.get("final_report", {}).get("verification", {}))
@@ -210,11 +281,21 @@ def reconcile_orphaned_runs() -> None:
 
 
 def _budget_guard(run_id: str, chunk: Dict[str, Any]) -> None:
+    """Soft per-run budget guardrail. Warns first, then aborts if the run keeps growing.
+
+    The guard is evaluated on every graph tick. When the accumulated cost exceeds the
+    configured RUN_BUDGET_USD, we publish a warning event and raise a controlled exception
+    so the run terminates as 'failed' rather than burning through the manager's budget.
+    """
     settings = get_settings()
     cost = float(chunk.get("cost_usd", 0.0))
     if settings.run_budget_usd and cost > settings.run_budget_usd:
         publish_event(run_id, {"node": "run", "status": "budget_warning",
                                "cost_usd": cost, "budget_usd": settings.run_budget_usd, "run_id": run_id})
+        raise RuntimeError(
+            f"Run budget exceeded: ${cost:.2f} > ${settings.run_budget_usd:.2f} "
+            f"(RUN_BUDGET_USD). Aborting to prevent further cost."
+        )
 
 
 def _persist_outputs(run_id: str, state: Dict[str, Any], *, status: str, error: Optional[str] = None) -> None:

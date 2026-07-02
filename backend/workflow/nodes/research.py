@@ -20,6 +20,27 @@ from workflow.models import make_chat_model, resolve_model
 from workflow.tools import ToolContext, get_tool_fns
 
 
+# Compliance sources that must be queried by each adverse-research DOMAIN. The gate below
+# forces up to 2 extra turns if a required tool was not attempted. This is keyed by domain,
+# not by agent name, so it works for both template-mode (fixed names) and AI-tailored mode
+# (dynamic names) as long as the agent has the correct domain tag.
+REQUIRED_TOOLS_BY_DOMAIN = {
+    "sanctions_legal": [
+        "ofac_sdn_search", "ofac_nonsdn_search", "bis_entity_list_search",
+        "un_sanctions_search", "eu_sanctions_search", "pacer_search",
+    ],
+    "adverse_conduct": [
+        "fpds_search", "usaspending_search", "occrp_search", "who_profits_search",
+    ],
+    "adverse_media_esg": [
+        "epa_echo_search", "osha_search", "violation_tracker_search",
+    ],
+    "pep_ownership_risk": [
+        "ofac_sdn_search", "pacer_search", "who_profits_search",
+    ],
+}
+
+
 def dispatch_research(state: Dict[str, Any]) -> List[Send]:
     """Conditional edge: fan out one branch per research agent in the plan.
 
@@ -130,6 +151,54 @@ def research_agent_node(state: Dict[str, Any], config: Dict[str, Any] | None = N
 
         transcript.append(HumanMessage(content="Continue researching, then return the final JSON object."))
 
+    # Completion gate: required compliance sources must be attempted before finalization.
+    # If missing, give the agent up to 2 extra turns with explicit instructions.
+    missing = _missing_required_tools(spec.domain, ctx)
+    extra_turns = 0
+    while missing and extra_turns < 2:
+        extra_turns += 1
+        prompt = (
+            "REQUIRED SOURCE CHECK: before you finalize, you must query these mandated "
+            "compliance databases that have not yet been attempted: " + ", ".join(missing) +
+            ". Call each as a tool now, then return the final JSON object."
+        )
+        transcript.append(HumanMessage(content=prompt))
+        try:
+            resp = llm.invoke(transcript, config={"callbacks": callbacks} if callbacks else None)
+        except Exception as e:  # noqa: BLE001
+            consecutive_errors += 1
+            if consecutive_errors >= 3:
+                break
+            continue
+        consecutive_errors = 0
+        text = resp.content if isinstance(resp.content, str) else _stringify(resp.content)
+        usage = getattr(resp, "usage_metadata", None) or {}
+        total_cost += estimate_cost(model_id, usage.get("input_tokens", 0), usage.get("output_tokens", 0))
+        try:
+            parsed = _extract_json(text)
+        except ValueError:
+            transcript.append(HumanMessage(content="Respond ONLY with JSON: either {\"tool\": ...} or the final {\"narrative_markdown\":..., \"findings\":...}."))
+            continue
+        if isinstance(parsed, dict) and ("narrative_markdown" in parsed or "findings" in parsed):
+            return _finalize(spec, model_id, parsed, ctx, total_cost)
+        if isinstance(parsed, dict) and "tool" in parsed:
+            tool_name = parsed.get("tool")
+            args = parsed.get("args", {}) or {}
+            fn = tool_fns.get(tool_name)
+            if not fn:
+                obs = {"error": f"unknown tool '{tool_name}'. Available: {list(tool_fns)}"}
+            else:
+                try:
+                    obs = fn(**args)
+                except TypeError:
+                    val = next(iter(args.values()), "")
+                    obs = fn(val)
+            transcript.append(HumanMessage(content="TOOL_RESULT " + json.dumps(obs)[:12000]))
+            missing = _missing_required_tools(spec.domain, ctx)
+            continue
+        transcript.append(HumanMessage(content="Continue querying the missing sources, then return the final JSON object."))
+        missing = _missing_required_tools(spec.domain, ctx)
+
     # Loop exhausted: ask for the final synthesis.
     transcript.append(HumanMessage(content="Iteration budget exhausted. Return the final JSON object now."))
     resp = llm.invoke(transcript, config={"callbacks": callbacks} if callbacks else None)
@@ -141,15 +210,64 @@ def research_agent_node(state: Dict[str, Any], config: Dict[str, Any] | None = N
     return _finalize(spec, model_id, parsed, ctx, total_cost)
 
 
+import re as _re
+
+# Patterns matching tool-call JSON and TOOL_RESULT blocks that the model sometimes
+# leaks into the narrative_markdown instead of keeping them out of the final output.
+_TOOL_CALL_RE = _re.compile(
+    r'^\s*\{["\s]*tool["\s]*:.*?\}\s*$',
+    _re.MULTILINE,
+)
+_TOOL_RESULT_RE = _re.compile(
+    r'TOOL_RESULT\s+.*?(?=\n\n|\n\{|\Z)',
+    _re.DOTALL,
+)
+_JSON_BLOCK_RE = _re.compile(
+    r'```(?:json)?\s*\{["\s]*tool["\s]*:.*?```',
+    _re.DOTALL,
+)
+
+
+def _clean_narrative(text: str) -> str:
+    """Strip tool-call JSON and TOOL_RESULT blocks from the narrative markdown.
+
+    The research agent sometimes includes its tool-calling transcript in the
+    narrative_markdown field. This pollutes the raw report and PDF exports with
+    unreadable JSON. We strip these patterns while preserving the actual prose.
+    """
+    text = _JSON_BLOCK_RE.sub("", text)
+    text = _TOOL_RESULT_RE.sub("", text)
+    text = _TOOL_CALL_RE.sub("", text)
+    # Collapse runs of blank lines left by removals.
+    text = _re.sub(r'\n{3,}', '\n\n', text)
+    return text.strip()
+
+
+def _missing_required_tools(domain: str, ctx: ToolContext) -> List[str]:
+    """Return the required tools for this domain that have not been recorded in tool_calls."""
+    required = REQUIRED_TOOLS_BY_DOMAIN.get(domain, [])
+    if not required:
+        return []
+    called = {c.get("tool") for c in ctx.tool_calls}
+    return [r for r in required if r not in called]
+
+
 def _tool_instructions(subject: str, spec: AgentSpec) -> str:
+    required = REQUIRED_TOOLS_BY_DOMAIN.get(spec.domain, [])
+    required_note = (
+        f"\nREQUIRED: before finishing, you MUST call these compliance-source tools: {', '.join(required)}. "
+        f"Use each tool with {{\"tool\": \"<tool_name>\", \"args\": {{\"name\": \"{subject}\"}}}}."
+        if required else ""
+    )
     return (
         f"Research subject: {subject}\n"
         f"To use a tool, respond with ONLY JSON: {{\"tool\": \"web_search\", \"args\": {{\"query\": \"...\"}}}} "
-        f"or {{\"tool\": \"scrape_url\", \"args\": {{\"url\": \"...\"}}}}.\n"
+        f"or {{\"tool\": \"scrape_url\", \"args\": {{\"url\": \"...\"}}}}, or use one of the "
+        f"dedicated compliance-source tools assigned to you.\n"
         f"Run a few searches from different angles and scrape only the most relevant pages to gather "
         f"primary-source detail (exact figures, dates, names, filings, quotes). You have up to "
         f"{spec.max_iterations} tool cycles, but STOP EARLY and return your final answer as soon as you "
-        f"have enough sourced detail — do not keep searching for its own sake.\n"
+        f"have enough sourced detail — do not keep searching for its own sake.{required_note}\n"
         f"When done, respond with ONLY the final JSON object containing 'narrative_markdown' and 'findings'.\n"
         f"Make 'narrative_markdown' a thorough, well-structured account with ALL specifics you found "
         f"(use markdown tables for structured data); do not summarize away detail. Record a source URL "
@@ -167,7 +285,7 @@ def _finalize(spec: AgentSpec, model_id: str, parsed: Any, ctx: ToolContext, cos
         parsed = obj if obj is not None else {"findings": [x for x in parsed if isinstance(x, dict)]}
     if not isinstance(parsed, dict):
         parsed = {}
-    narrative = parsed.get("narrative_markdown", "") or ""
+    narrative = _clean_narrative(parsed.get("narrative_markdown", "") or "")
     raw_findings = parsed.get("findings", []) or []
     findings: List[Dict[str, Any]] = []
     for f in raw_findings:
@@ -184,6 +302,7 @@ def _finalize(spec: AgentSpec, model_id: str, parsed: Any, ctx: ToolContext, cos
     agent_output = {
         "agent": spec.name,
         "role": spec.role,
+        "domain": spec.domain,
         "model": model_id,
         "narrative_markdown": narrative,
         "findings": findings,         # carries source_urls; ids assigned in aggregator

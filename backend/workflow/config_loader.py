@@ -15,7 +15,13 @@ import yaml
 
 from app.schemas.contracts import AgentSpec, WorkflowPlan
 
-KNOWN_TOOLS = {"web_search", "scraper", "scrape_url", "read_file", "file_reader", "code_executor"}
+KNOWN_TOOLS = {
+    "web_search", "scraper", "scrape_url", "read_file", "file_reader", "code_executor",
+    "ofac_sdn_search", "ofac_nonsdn_search", "bis_entity_list_search",
+    "un_sanctions_search", "eu_sanctions_search", "fpds_search", "usaspending_search",
+    "occrp_search", "epa_echo_search", "osha_search", "who_profits_search",
+    "violation_tracker_search", "pacer_search",
+}
 
 
 class ConfigError(ValueError):
@@ -115,6 +121,7 @@ def _merge_to_plan(agents_raw: Dict[str, Any], tasks_raw: Dict[str, Any], task: 
             name=agent_name,
             role=adef.get("role", agent_name),
             goal=adef.get("goal", ""),
+            domain=adef.get("domain", "overview_ownership"),
             rationale=tdef.get("expected_output", ""),
             depends_on=dep_agents,
             max_iterations=int(adef.get("max_iterations", 10)),
@@ -142,6 +149,7 @@ def _normalize_plan_dict(data: Dict[str, Any], task: str) -> WorkflowPlan:
                 name=a["name"],
                 role=a.get("role", a["name"]),
                 goal=a.get("goal", ""),
+                domain=a.get("domain", "overview_ownership"),
                 rationale=a.get("rationale", a.get("expected_output", "")),
                 depends_on=a.get("depends_on", []) or [],
                 max_iterations=int(a.get("max_iterations", 10)),

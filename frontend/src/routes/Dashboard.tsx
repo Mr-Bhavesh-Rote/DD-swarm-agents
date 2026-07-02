@@ -79,7 +79,15 @@ export default function Dashboard() {
                 <Chip
                   size="small"
                   label={r.status}
-                  color={r.status === "done" ? "success" : r.status === "failed" ? "error" : "info"}
+                  color={
+                    r.status === "done"
+                      ? "success"
+                      : r.status === "failed"
+                        ? "error"
+                        : r.status === "needs_review"
+                          ? "warning"
+                          : "info"
+                  }
                 />
               </TableCell>
               <TableCell>{r.model ?? "—"}</TableCell>

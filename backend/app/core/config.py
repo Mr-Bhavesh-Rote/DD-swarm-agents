@@ -24,9 +24,10 @@ class Settings(BaseSettings):
 
     # --- LLM (Anthropic) ---
     anthropic_api_key: str = Field(default="", alias="ANTHROPIC_API_KEY")
-    default_model: str = Field(default="claude-opus-4-8", alias="DEFAULT_MODEL")
-    research_model: str = Field(default="claude-sonnet-4-6", alias="RESEARCH_MODEL")
-    verifier_model: str = Field(default="claude-opus-4-8", alias="VERIFIER_MODEL")
+    # Cost-control mode: all agents use Sonnet 4.6 to stay under the $5 per-run budget.
+    default_model: str = Field(default="claude-sonnet-4-6", alias="DEFAULT_MODEL")    # orchestrator / writer
+    research_model: str = Field(default="claude-sonnet-4-6", alias="RESEARCH_MODEL")  # research / aggregator
+    verifier_model: str = Field(default="claude-sonnet-4-6", alias="VERIFIER_MODEL")  # verifier
 
     # --- Observability ---
     langfuse_public_key: str = Field(default="", alias="LANGFUSE_PUBLIC_KEY")
@@ -62,11 +63,12 @@ class Settings(BaseSettings):
     max_revisions: int = Field(default=2, alias="MAX_REVISIONS")
     # Only run the (expensive) verifier→writer revise loop when faithfulness is below this.
     # A report at/above this score is accepted as-is (flagged claims recorded), avoiding a
-    # full re-synthesis for a handful of weak citations.
-    revision_min_faithfulness: float = Field(default=0.7, alias="REVISION_MIN_FAITHFULNESS")
-    max_subagents: int = Field(default=8, alias="MAX_SUBAGENTS")
+    # full re-synthesis for a handful of weak citations. Raised to 0.85 to enforce strong
+    # source grounding for compliance reports.
+    revision_min_faithfulness: float = Field(default=0.85, alias="REVISION_MIN_FAITHFULNESS")
+    max_subagents: int = Field(default=1, alias="MAX_SUBAGENTS")                        # default 1 research employee
     recursion_limit: int = Field(default=50, alias="RECURSION_LIMIT")
-    run_budget_usd: float = Field(default=10.0, alias="RUN_BUDGET_USD")
+    run_budget_usd: float = Field(default=10.0, alias="RUN_BUDGET_USD")                 # soft per-run cost ceiling
 
     # --- Auth & security ---
     jwt_secret: str = Field(default="", alias="JWT_SECRET")

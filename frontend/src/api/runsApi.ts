@@ -7,10 +7,12 @@ import type {
   RunListResponse,
   RunRequest,
   RunSummary,
+  TaskRefineRequest,
+  TaskRefineResponse,
   WorkflowPlan,
 } from "../types";
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
+const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "";
 
 export const runsApi = createApi({
   reducerPath: "runsApi",
@@ -28,6 +30,9 @@ export const runsApi = createApi({
       query: (body) => ({ url: "/api/runs", method: "POST", body }),
       invalidatesTags: ["Run"],
     }),
+    refineTask: build.mutation<TaskRefineResponse, TaskRefineRequest>({
+      query: (body) => ({ url: "/api/runs/refine-task", method: "POST", body }),
+    }),
     getRuns: build.query<RunListResponse, { subject_type?: string; status?: string; page?: number }>({
       query: (params) => ({ url: "/api/runs", params }),
       providesTags: ["Run"],
@@ -43,6 +48,10 @@ export const runsApi = createApi({
     updatePlan: build.mutation<WorkflowPlan, { id: string; plan: WorkflowPlan }>({
       query: ({ id, plan }) => ({ url: `/api/runs/${id}/plan`, method: "PUT", body: plan }),
       invalidatesTags: ["Plan"],
+    }),
+    approvePlan: build.mutation<{ run_id: string; status: string }, string>({
+      query: (id) => ({ url: `/api/runs/${id}/approve-plan`, method: "POST" }),
+      invalidatesTags: ["Run", "Plan"],
     }),
     cancelRun: build.mutation<{ run_id: string; status: string }, string>({
       query: (id) => ({ url: `/api/runs/${id}/cancel`, method: "POST" }),
@@ -105,6 +114,8 @@ export const streamUrl = (id: string) => `${API_BASE}/api/runs/${id}/stream`;
 
 export const {
   useCreateRunMutation,
+  useRefineTaskMutation,
+  useApprovePlanMutation,
   useGetRunsQuery,
   useGetRunQuery,
   useGetPlanQuery,

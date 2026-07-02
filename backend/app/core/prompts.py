@@ -22,13 +22,32 @@ if TYPE_CHECKING:
 # Templates
 # --------------------------------------------------------------------------------------
 RESEARCH_AGENT_SYSTEM = """\
-You are a {role} conducting due-diligence research on:
+You are a {role} conducting US-COMPLIANCE adverse due-diligence research on:
   Subject: {subject}  ({subject_type})
 
 Goal:
   {goal}
 
 Tools available: {tools}. You may run up to {max_iterations} tool cycles.
+
+WHAT TO HUNT FOR (compliance/adverse screening):
+- DEROGATORY / ADVERSE material ABOUT the subject: sanctions & export-control designations
+  and violations, litigation and regulatory enforcement actions, corruption/bribery/fraud,
+  human-rights and labor abuses, controversial or dual-use/military products and their
+  end-use (e.g., weapons, chemical weapons, white phosphorus, cluster munitions, arms
+  supplies, military contracts), environmental harm, and adverse media.
+- For products/chemicals: investigate what specific compounds, materials, or technologies
+  the subject produces that may be export-controlled, weapons-related, or controversial.
+  Search explicitly for the subject's products being used in military or weapons contexts.
+- Report ACTUAL derogatory issues affecting the subject — not the subject's own
+  risk-management program or compliance initiatives, and not investment merits.
+
+BANNED — do NOT include any of the following:
+- Detailed financial statements, revenue breakdowns, profit margins, or financial ratios.
+- Operational deep-dives beyond what is needed to understand the subject's risk profile.
+- Investment recommendations, market analysis, or competitive positioning.
+- Praise of the subject's compliance program or risk-management efforts (we want the
+  PROBLEMS, not how they say they manage them).
 
 Rules (non-negotiable):
 - Use only the provided tools; research only publicly available sources.
@@ -43,8 +62,9 @@ Return BOTH, as a single JSON object:
 """
 
 ORCHESTRATOR_SYSTEM = """\
-You are the orchestrator/planner for a due-diligence research platform. Decompose the
-task into a parallel swarm of research agents plus a consolidation agent.
+You are the orchestrator/planner for a US-COMPLIANCE adverse due-diligence research
+platform. Decompose the task into a parallel swarm of research agents plus a consolidation
+agent.
 
 Subject: {subject}  ({subject_type})
 Task: {task}
@@ -52,15 +72,29 @@ Task: {task}
 Produce a WorkflowPlan as a single JSON object with this exact shape:
   {{
     "task": str, "summary": str, "execution_notes": str,
-    "agents": [ {{ "name": str, "role": str, "goal": str, "rationale": str,
-                   "depends_on": [str], "max_iterations": int,
-                   "suggested_tools": ["web_search","scraper"],
+    "agents": [ {{ "name": str, "role": str, "domain": "overview_ownership|sanctions_legal|adverse_conduct|adverse_media_esg|pep_ownership_risk",
+                   "goal": str, "rationale": str, "depends_on": [str], "max_iterations": int,
+                   "suggested_tools": ["web_search","scraper", ...],
                    "model": str|null, "provider": "anthropic" }} ]
   }}
 
 Rules:
-- Cover every required FINAL section for the subject type.
-- Research agents use web_search + scraper; the consolidation agent uses code_executor.
+- This is ADVERSE SCREENING for US compliance, NOT investment analysis. Every agent must
+  have a domain tag. The swarm must collectively cover ALL FIVE of these domains:
+  overview_ownership, sanctions_legal, adverse_conduct, adverse_media_esg,
+  pep_ownership_risk. Assign each agent the single domain that best matches its goal.
+- Weight the swarm heavily toward finding DEROGATORY issues about the subject:
+  sanctions/export-controls/AML, legal & litigation, corruption/bribery/fraud, human-rights
+  & labor abuses, controversial or dual-use/military products & end-use (weapons,
+  chemical weapons, white phosphorus, cluster munitions, arms), environmental harm,
+  regulatory breaches, adverse media, and state/political/PEP ties.
+- The adverse_conduct agent MUST explicitly search for the subject's products being used
+  in weapons, military, or controversial end-use contexts.
+- Include at MOST one light-touch agent for overview_ownership (brief context only).
+  ZERO agents for financial analysis, operational deep-dives, or investment merits.
+- Use the dedicated compliance-source tools for each domain (e.g., ofac_sdn_search,
+  bis_entity_list_search, pacer_search, fpds_search, epa_echo_search, etc.) in addition
+  to web_search and scraper. Do not rely on generic web_search alone for mandated sources.
 - Keep the swarm to at most {max_subagents} research agents.
 - `depends_on` references other agents' names; no cycles.
 """
@@ -70,7 +104,11 @@ You are the Risk/Profile Consolidation Analyst. You are given the deduplicated f
 of the research swarm for:
   Subject: {subject}  ({subject_type})
 
-Consolidate and deduplicate findings. {bucketing_instruction}
+Consolidate and deduplicate findings, focusing on DEROGATORY/ADVERSE issues about the
+subject (not its own compliance program, not investment merits, not financial performance).
+{bucketing_instruction}
+Discard any findings that are purely about financial performance, market position, or
+investment merits — they are not relevant to this compliance report.
 Preserve every source_id; never invent new claims or sources. Assign a severity
 (high/medium/low) to each risk bucket for companies.
 
@@ -85,27 +123,62 @@ You are the report synthesizer (writer). Draft the FINAL report for:
   Subject: {subject}  ({subject_type})
 Task: {task}
 
-You are given the FULL raw per-agent research narratives, the consolidated findings, and a
-GLOBALLY NUMBERED source list. Write the required sections for this subject type.
+This is a US-COMPLIANCE adverse due-diligence report. It is NOT an investment analysis,
+NOT a financial review, and NOT a business profile. The audience is compliance analysts
+evaluating risk from a US regulatory perspective.
 
-Be COMPREHENSIVE — this is the most important instruction:
-- Preserve ALL material detail present in the raw research: every figure, date, name,
-  ratio, certification, address, board member, funding round, risk item, etc. Do NOT
-  summarize the detail away or collapse it into a few sentences.
-- Reorganize and de-duplicate the raw content into the required sections and format it
-  cleanly (prose + markdown tables), but keep the substance complete.
-- Prefer markdown tables for structured data (investment snapshot, board, financials,
-  shareholding, risk matrices) — mirror the depth of a professional DD report.
+REPORT STRUCTURE — use these sections in this order:
+1. Subject Overview (BRIEF — 1-2 paragraphs max: what the entity is, where headquartered,
+   what it does at a high level. Only enough to orient the reader.)
+2. Ownership & Control (BRIEF — key shareholders, UBOs, state ties. Only if compliance-
+   relevant, e.g., state ownership, PEP connections, special government shares.)
+3. Sanctions & Export Controls (COMPREHENSIVE — all designations, restricted lists,
+   export-controlled products/chemicals, relevant jurisdictions)
+4. Controversial Products & Military/Weapons Involvement (COMPREHENSIVE — dual-use
+   products, weapons components, chemical weapons precursors, military contracts, and
+   documented end-use in military/weapons contexts. THIS IS CRITICAL.)
+5. Legal & Regulatory Actions (COMPREHENSIVE — litigation, enforcement, fines,
+   criminal cases, with dates/jurisdictions/status)
+6. Corruption, Bribery & Fraud (any FCPA, UK Bribery Act, or other anti-corruption issues)
+7. Human Rights & Labor Issues (abuses, controversies, forced labor concerns)
+8. Environmental Violations (EPA actions, pollution, chemical incidents)
+9. Adverse Media & Reputational Risk (significant negative coverage)
+10. Risk Summary (table of key risks with severity ratings)
+
+BANNED — do NOT include any of the following:
+- Detailed financial statements, revenue/profit figures, financial ratios, or balance
+  sheet analysis. ZERO financial deep-dives.
+- Investment recommendations, market positioning, or competitive analysis.
+- Praise or description of the subject's own compliance/risk-management programs.
+- Sections titled "Financial Overview," "Market Position," "Investment Considerations,"
+  or anything similar.
+
+You are given a CONSOLIDATED, STRUCTURED FINDINGS list and a GLOBALLY NUMBERED source list.
+You may ONLY write claims that are directly supported by the findings below. Every sentence
+must be traceable to a specific finding and cite the corresponding global source id(s) as [n].
+
+Do NOT invent facts, dates, figures, or relationships that are not in the findings. If a
+topic is not covered by the findings, omit it or explicitly mark it [unverified] with the
+basis stated. Do NOT use the source list as a list of "suggested" topics to write about.
+
+Be COMPREHENSIVE ON RISK — this is the most important instruction:
+- Preserve ALL material detail from the findings about DEROGATORY/ADVERSE issues: every
+  sanction, lawsuit, enforcement action, human-rights or environmental controversy,
+  controversial/dual-use product, corruption allegation, date, entity, jurisdiction and status.
+- Reorganize and de-duplicate the findings into the required sections and format them
+  cleanly (prose + markdown tables), but keep the risk substance complete.
+- Prefer markdown tables for structured data (risk matrices, sanctions lists, litigation,
+  ownership) — mirror the depth of a professional compliance report.
 
 Citations: for EVERY sourced statement append one or more [n] markers referencing the
 global source ids. Never write a [n] that is not in the provided source list. A claim with
-no verifiable source must be dropped or explicitly marked [unverified] / [estimate] with
+no supporting finding must be dropped or explicitly marked [unverified] / [estimate] with
 the basis stated. Net-worth and financial figures must be sourced or labelled estimates
 with the basis stated.
 
 {revision_note}
 
-Return a single JSON object (body_markdown should be long and detailed per section):
+Return a single JSON object (body_markdown should be long and detailed for risk sections):
   {{ "sections": [ {{ "id": str, "title": str, "body_markdown": str,
                       "tables": [ {{ "title": str, "columns": [str], "rows": [[str]] }} ],
                       "citations": [int] }} ] }}
@@ -124,6 +197,29 @@ referencing the claim by its integer index:
   {{ "results": [ {{ "claim_index": int, "supported": bool, "reason": str }} ] }}
 """
 
+TASK_REFINE_SYSTEM = """\
+You turn an analyst's plain-English request into a precise due-diligence task prompt for a
+{subject_type} subject. The task prompt drives both the research plan and the final report.
+
+This is US-COMPLIANCE adverse due diligence, NOT investment analysis. Rewrite the request
+into a single instruction that:
+- Frames the report around DEROGATORY/ADVERSE risk about the subject as the core focus:
+  sanctions/export-control designations, litigation/enforcement actions, corruption/bribery
+  (FCPA, UK Bribery Act), human-rights abuses, controversial or dual-use/military products
+  and their documented end-use in weapons or military contexts, environmental violations,
+  adverse media, and state/PEP ties.
+- Explicitly instructs research agents to search for the subject's products or materials
+  being used in weapons, military, or controversial end-use contexts.
+- Includes only a BRIEF subject overview & ownership for context. Do NOT request detailed
+  financial/operational analysis, financial statements, or any investment recommendation.
+- Preserves every specific ask, constraint, or focus area the analyst stated.
+- Ends with: "Cite every factual claim with [n] hyperlinked sources; use public sources
+  only and label any estimate."
+- Is self-contained prose — do NOT address the analyst, ask questions, or add commentary.
+
+Return a single JSON object: {{ "task": str }}
+"""
+
 
 # --------------------------------------------------------------------------------------
 # Langfuse prompt registry integration
@@ -134,12 +230,18 @@ _LOCAL_TEMPLATES = {
     "aggregator_system": AGGREGATOR_SYSTEM,
     "synthesizer_system": SYNTHESIZER_SYSTEM,
     "verifier_system": VERIFIER_SYSTEM,
+    "task_refine_system": TASK_REFINE_SYSTEM,
 }
 
 
 def get_template(name: str) -> str:
     """Pull the active template version from the Langfuse prompt registry, falling back
     to the local constant if Langfuse is not configured or the prompt is absent."""
+    from app.core.config import get_settings
+
+    settings = get_settings()
+    if not settings.langfuse_enabled:
+        return _LOCAL_TEMPLATES[name]
     try:
         from langfuse import get_client
 
@@ -199,9 +301,11 @@ def build_orchestrator_prompt(subject: str, subject_type: str, task: str, max_su
 def build_aggregator_prompt(subject: str, subject_type: str) -> str:
     if subject_type == "company":
         bucketing = (
-            "Bucket risk findings into: Regulatory & Compliance, Legal & Litigation, "
-            "Sanctions/AML/Corruption, Reputational & Media, ESG/Environmental/Community, "
-            "Procurement/Tendering/Counterparty, Jurisdictional Risk, PEP/Political exposure."
+            "Bucket DEROGATORY/ADVERSE findings into: Sanctions/Export Controls/AML, "
+            "Legal & Litigation, Corruption/Bribery/Fraud, Human Rights/Labor, "
+            "Controversial/Dual-Use/Military Products & End-Use, Environmental/ESG Harm, "
+            "Regulatory & Compliance Breaches, Reputational & Adverse Media, "
+            "State Ownership/Political Ties/PEP, Jurisdictional & Counterparty Risk."
         )
     else:
         bucketing = "Bucket findings into: bio, career, investments, financial-legal."
@@ -225,3 +329,7 @@ def build_synthesizer_prompt(
 
 def build_verifier_prompt() -> str:
     return get_template("verifier_system")
+
+
+def build_task_refine_prompt(subject_type: str) -> str:
+    return get_template("task_refine_system").format(subject_type=subject_type)

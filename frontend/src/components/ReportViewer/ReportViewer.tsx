@@ -82,7 +82,7 @@ export default function ReportViewer({ runId, canExport }: { runId: string; canE
       </Box>
       {!canExport && (
         <Alert severity="info" sx={{ my: 1 }}>
-          Export is available once the run status is <strong>done</strong>.
+          Export is available once the run status is <strong>done</strong> or <strong>needs review</strong>.
         </Alert>
       )}
       {exportError && (
@@ -124,6 +124,27 @@ export default function ReportViewer({ runId, canExport }: { runId: string; canE
                 <CitationMarkdown markdown={sec.body_markdown} sources={final.sources} />
               </Box>
             ))}
+            {final.source_manifest && Object.keys(final.source_manifest).length > 0 && (
+              <Box id="sec-sources-queried" sx={{ mb: 3 }}>
+                <Typography variant="h5" gutterBottom>
+                  Sources Queried
+                </Typography>
+                <List dense>
+                  {Object.entries(final.source_manifest).map(([tool, info]) => (
+                    <ListItemText
+                      key={tool}
+                      primary={
+                        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                          <Chip size="small" color={info.attempted ? "success" : "warning"} label={info.attempted ? "queried" : "NOT queried"} />
+                          <span>{tool}</span>
+                        </Box>
+                      }
+                      secondary={`Required by: ${info.required_by}`}
+                    />
+                  ))}
+                </List>
+              </Box>
+            )}
           </Box>
         </Box>
       )}

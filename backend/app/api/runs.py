@@ -5,8 +5,10 @@ served from reports.report_json (the single source of truth). SSE streams progre
 """
 from __future__ import annotations
 
+import asyncio
 import uuid
 from typing import Optional
+from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
@@ -18,7 +20,7 @@ from app.core.config import get_settings
 from app.core.events import heartbeat_age, request_cancel, subscribe_events
 from app.db.models import Export, Report, Run, RunAgent, SourceRow, WorkflowPlanRow
 from app.db.session import get_db
-from app.schemas.contracts import RunRequest, WorkflowPlan
+from app.schemas.contracts import RunRequest, TaskRefineRequest, TaskRefineResponse, WorkflowPlan
 from workflow.config_loader import ConfigError, load_plan_for_subject, normalize_plan
 
 router = APIRouter(prefix="/api/runs", tags=["runs"])
@@ -38,19 +40,38 @@ async def create_run(
         subject_type=req.subject_type,
         task=req.task,
         status="queued",
+        planning_mode=req.planning_mode,
+        max_research_agents=req.max_research_agents,
         model_config_json=req.model_config_.model_dump(),
         created_by=uuid.UUID(user["sub"]) if user.get("sub") else None,
     )
     db.add(run)
     await db.flush()
 
-    # Resolve a plan now so it can be previewed/approved before expensive research (§10 gate).
-    plan = _resolve_plan(req)
-    if plan is not None:
-        db.add(WorkflowPlanRow(run_id=run.id, plan=plan.model_dump(), is_generated=False))
+    # AI-tailored runs build the swarm synchronously so the analyst can review/approve it
+    # BEFORE any expensive research runs (§10 gate). The run is held in "awaiting_plan" and
+    # only enqueued once the plan is approved. If generation fails we fall back to the normal
+    # flow (enqueue now; the planner regenerates at run time) so create never hard-fails.
+    gated = False
+    if req.plan_override is None and req.planning_mode == "ai":
+        ai_plan, plan_cost = _generate_ai_plan(req)
+        if ai_plan is not None:
+            payload = ai_plan.model_dump()
+            payload["_is_generated"] = True
+            db.add(WorkflowPlanRow(run_id=run.id, plan=payload, is_generated=True, approved=False))
+            run.status = "awaiting_plan"
+            run.cost_usd = plan_cost  # seed with planning cost; the run folds research on top
+            gated = True
+    else:
+        plan = _resolve_plan(req)
+        if plan is not None:
+            db.add(WorkflowPlanRow(run_id=run.id, plan=plan.model_dump(), is_generated=False))
 
     await db.commit()
     await db.refresh(run)
+
+    if gated:
+        return {"run_id": str(run.id), "status": "awaiting_plan"}
 
     # Enqueue out-of-band job (deferred import avoids a hard redis dep at import time).
     from worker import enqueue_run
@@ -66,6 +87,54 @@ def _resolve_plan(req: RunRequest) -> Optional[WorkflowPlan]:
         return load_plan_for_subject(req.subject_type, task=req.task)
     except ConfigError:
         return None  # planner will generate one at run time
+
+
+def _generate_ai_plan(req: RunRequest) -> tuple[Optional[WorkflowPlan], float]:
+    """Build an LLM-tailored plan from the task (mirrors planner path 3) so it can be
+    reviewed before research. Returns (plan, cost_usd); plan is None on any failure → caller
+    degrades to run-time generation. The per-run cap can only tighten the system MAX_SUBAGENTS."""
+    from app.core.prompts import build_orchestrator_prompt
+    from workflow.llm import invoke_json
+    from workflow.models import resolve_model
+
+    settings = get_settings()
+    max_agents = min(req.max_research_agents or settings.max_subagents, settings.max_subagents)
+    model_config = req.model_config_.model_dump()
+    model = resolve_model(role="orchestrator", model_config=model_config)
+    sys = build_orchestrator_prompt(req.subject, req.subject_type, req.task, max_agents)
+    user = f"Subject: {req.subject}\nSubject type: {req.subject_type}\nTask: {req.task}"
+    try:
+        result = invoke_json(model, sys, user, max_tokens=4096)
+        data = result.get("data") or {}
+        if not data.get("agents"):
+            return None, 0.0
+        plan = normalize_plan(data)
+        from workflow.nodes.planner import _ensure_domain_coverage
+
+        plan = _ensure_domain_coverage(plan, req.subject, req.subject_type, max_agents)
+        return plan, float(result.get("cost_usd", 0.0))
+    except Exception:
+        return None, 0.0
+
+
+@router.post("/refine-task", response_model=TaskRefineResponse)
+async def refine_task(req: TaskRefineRequest, _user=Depends(require_role("analyst"))) -> TaskRefineResponse:
+    """Expand a plain-English ask into a structured DD task prompt (one cheap LLM call).
+    Returned text is editable in the UI before the run is created."""
+    from app.core.prompts import build_task_refine_prompt
+    from workflow.llm import invoke_json
+    from workflow.models import resolve_model
+
+    if not req.query.strip():
+        raise HTTPException(422, "query is required")
+    model = resolve_model(role="orchestrator")
+    sys = build_task_refine_prompt(req.subject_type)
+    user = f"Subject: {req.subject or '(unspecified)'}\nSubject type: {req.subject_type}\nRequest: {req.query}"
+    result = invoke_json(model, sys, user, max_tokens=1500)
+    task = (result.get("data") or {}).get("task", "").strip()
+    if not task:
+        raise HTTPException(502, "Could not refine the task; please edit it manually.")
+    return TaskRefineResponse(task=task, cost_usd=result.get("cost_usd", 0.0))
 
 
 @router.get("")
@@ -131,7 +200,7 @@ async def update_plan(
     run = await db.get(Run, run_id)
     if not run:
         raise HTTPException(404, "Run not found")
-    if run.status not in ("queued", "planning"):
+    if run.status not in ("queued", "planning", "awaiting_plan"):
         raise HTTPException(409, "Plan can only be edited before research starts")
     try:
         normalized = normalize_plan(plan)  # validates references/cycles/tools (fail-fast)
@@ -147,6 +216,28 @@ async def update_plan(
         db.add(WorkflowPlanRow(run_id=run_id, plan=payload, is_generated=False, approved=True))
     await db.commit()
     return payload
+
+
+@router.post("/{run_id}/approve-plan")
+async def approve_plan(run_id: uuid.UUID, db: AsyncSession = Depends(get_db), _user=Depends(require_role("analyst"))) -> dict:
+    """Approve a held AI-tailored plan and start research (§10 gate). Only valid while the
+    run is awaiting plan approval; flips it to queued and enqueues the worker job."""
+    run = await db.get(Run, run_id)
+    if not run:
+        raise HTTPException(404, "Run not found")
+    if run.status != "awaiting_plan":
+        raise HTTPException(409, "This run is not awaiting plan approval")
+    row = (await db.execute(select(WorkflowPlanRow).where(WorkflowPlanRow.run_id == run_id))).scalar_one_or_none()
+    if not row:
+        raise HTTPException(409, "No plan to approve")
+    row.approved = True
+    run.status = "queued"
+    await db.commit()
+
+    from worker import enqueue_run
+
+    enqueue_run(str(run_id))
+    return {"run_id": str(run_id), "status": "queued"}
 
 
 @router.post("/{run_id}/cancel")
@@ -178,13 +269,16 @@ async def resume_run(run_id: uuid.UUID, db: AsyncSession = Depends(get_db), _use
 
 @router.post("/{run_id}/review")
 async def mark_reviewed(run_id: uuid.UUID, db: AsyncSession = Depends(get_db), _user=Depends(require_role("analyst"))) -> dict:
-    """Human-approval gate (§10): mark a finished run reviewed before export."""
+    """Human-approval gate (§10): mark a finished run reviewed and approved."""
     run = await db.get(Run, run_id)
     if not run:
         raise HTTPException(404, "Run not found")
     run.reviewed = True
+    # A needs_review run that a human has reviewed is treated as approved/done.
+    if run.status == "needs_review":
+        run.status = "done"
     await db.commit()
-    return {"run_id": str(run_id), "reviewed": True}
+    return {"run_id": str(run_id), "reviewed": True, "status": run.status}
 
 
 # --------------------------------------------------------------------------------------
@@ -222,8 +316,8 @@ async def export_report(
     run = await db.get(Run, run_id)
     if not run:
         raise HTTPException(404, "Run not found")
-    if run.status != "done":
-        raise HTTPException(409, "Export available only after the run is done")
+    if run.status not in ("done", "needs_review"):
+        raise HTTPException(409, "Export available only after the run is finished")
 
     report_row = (await db.execute(
         select(Report).where(Report.run_id == run_id, Report.kind == report)
@@ -231,15 +325,22 @@ async def export_report(
     if not report_row:
         raise HTTPException(404, "Report not found")
 
+    # Eagerly read the subject before any sync renderer work; accessing a lazy-loaded
+    # ORM attribute after a long-running sync call can raise SQLAlchemy's MissingGreenlet
+    # because the session may try to refresh the object outside the async greenlet.
+    run_subject = run.subject
+
     from exporters.docx import render_docx
     from exporters.pdf import render_pdf
     from app.core.storage import store_bytes
 
+    # Renderers are CPU-heavy and synchronous (WeasyPrint / python-docx). Run them in a
+    # thread pool so the async event loop and DB connection stay alive.
     if format == "pdf":
-        data = render_pdf(report_row.report_json, report)
+        data = await asyncio.to_thread(render_pdf, report_row.report_json, report)
         media = "application/pdf"
     else:
-        data = render_docx(report_row.report_json, report)
+        data = await asyncio.to_thread(render_docx, report_row.report_json, report)
         media = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 
     # Archive the export (best-effort): a storage failure (e.g. unwritable EXPORT_STORAGE_URI)
@@ -252,10 +353,13 @@ async def export_report(
     except Exception:  # noqa: BLE001
         await db.rollback()
 
-    filename = f"{run.subject[:40].replace('/', '-')}-{report}.{format}"
+    filename = f"{run_subject[:40].replace('/', '-')}-{report}.{format}"
+    # RFC 5987 encoding lets browsers handle non-ASCII filenames (e.g., Hebrew) without
+    # blowing up the HTTP header's latin-1 encoding.
+    encoded = quote(filename, safe="")
     return StreamingResponse(
         iter([data]), media_type=media,
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{encoded}"},
     )
 
 

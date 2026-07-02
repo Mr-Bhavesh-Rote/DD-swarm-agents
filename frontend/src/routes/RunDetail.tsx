@@ -3,15 +3,20 @@ import {
   Alert,
   Box,
   Button,
+  Card,
+  CardContent,
   Chip,
   CircularProgress,
+  Divider,
   Stack,
   Typography,
   Link as MuiLink,
 } from "@mui/material";
 import { useNavigate, useParams } from "react-router-dom";
 import {
+  useApprovePlanMutation,
   useCancelRunMutation,
+  useGetPlanQuery,
   useGetRunQuery,
   useGetTraceQuery,
   useResumeRunMutation,
@@ -21,7 +26,8 @@ import { useAppDispatch } from "../app/store";
 import { clearRunStream } from "../features/runStream/runStreamSlice";
 import SwarmView from "../components/SwarmView/SwarmView";
 
-const TERMINAL = ["done", "failed", "cancelled"];
+const TERMINAL = ["done", "needs_review", "failed", "cancelled"];
+const RESEARCH_TOOLS = ["web_search", "scraper"];
 
 export default function RunDetail() {
   const { id } = useParams<{ id: string }>();
@@ -33,11 +39,21 @@ export default function RunDetail() {
   const { data: trace } = useGetTraceQuery(id!);
   const [cancelRun] = useCancelRunMutation();
   const [resumeRun, { isLoading: resuming }] = useResumeRunMutation();
+  const [approvePlan, { isLoading: approving }] = useApprovePlanMutation();
 
   const status = run?.status ?? "queued";
-  const active = !TERMINAL.includes(status);
+  const awaitingPlan = status === "awaiting_plan";
+  // awaiting_plan is non-terminal but pre-research: no worker is driving it, so don't treat
+  // it as "active" (no spinner / SSE stream) — show the plan-approval gate instead.
+  const active = !TERMINAL.includes(status) && !awaitingPlan;
   // active flips false->true on resume, which re-runs the effect and reconnects the stream.
   useRunStream(id, active);
+
+  // Only fetch the plan for the approval gate (avoids an extra request on normal runs).
+  const { data: plan } = useGetPlanQuery(id!, { skip: !awaitingPlan });
+  const researchAgents = (plan?.agents ?? []).filter((a) =>
+    a.suggested_tools?.some((t) => RESEARCH_TOOLS.includes(t)),
+  );
 
   const alive = run?.alive;
   const hbAge = run?.heartbeat_age;
@@ -57,17 +73,38 @@ export default function RunDetail() {
           {active && <CircularProgress size={20} thickness={5} />}
           <Chip
             label={status}
-            color={status === "done" ? "success" : status === "failed" ? "error" : "info"}
+            color={
+              status === "done"
+                ? "success"
+                : status === "failed"
+                  ? "error"
+                  : status === "needs_review"
+                    ? "warning"
+                    : "info"
+            }
           />
+          {run?.cost_usd != null && (
+            <Chip
+              size="small"
+              variant="outlined"
+              label={`$${run.cost_usd.toFixed(4)}`}
+              title={awaitingPlan ? "Planning cost so far (research not yet started)" : "Run cost so far"}
+            />
+          )}
           {active &&
             (alive ? (
               <Chip color="success" size="small" variant="outlined" label={`live · ${Math.round(hbAge ?? 0)}s`} />
             ) : (
               <Chip color="warning" size="small" variant="outlined" label="no heartbeat" />
             ))}
-          {active && (
+          {(active || awaitingPlan) && (
             <Button color="error" variant="outlined" onClick={() => id && cancelRun(id)}>
               Cancel
+            </Button>
+          )}
+          {awaitingPlan && (
+            <Button variant="contained" disabled={approving} onClick={() => id && approvePlan(id)}>
+              {approving ? "Starting…" : "Approve & start research"}
             </Button>
           )}
           {(status === "failed" || status === "cancelled") && (
@@ -75,7 +112,7 @@ export default function RunDetail() {
               {resuming ? "Resuming…" : "Resume"}
             </Button>
           )}
-          {status === "done" && (
+          {(status === "done" || status === "needs_review") && (
             <Button variant="contained" onClick={() => nav(`/runs/${id}/report`)}>
               View report
             </Button>
@@ -106,7 +143,42 @@ export default function RunDetail() {
         </Typography>
       )}
 
-      {id && <SwarmView runId={id} active={active} />}
+      {awaitingPlan ? (
+        <Card variant="outlined">
+          <CardContent>
+            <Alert severity="info" sx={{ mb: 2 }}>
+              This AI-tailored plan was generated from your task. Review the research swarm below,
+              then <strong>Approve &amp; start research</strong> — no research runs (or cost) until you do.
+            </Alert>
+            <Typography variant="h6" gutterBottom>
+              Proposed research swarm ({researchAgents.length} agent
+              {researchAgents.length === 1 ? "" : "s"})
+            </Typography>
+            {plan?.summary && (
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                {plan.summary}
+              </Typography>
+            )}
+            <Stack divider={<Divider flexItem />} spacing={1.5}>
+              {researchAgents.map((a) => (
+                <Box key={a.name}>
+                  <Typography variant="subtitle2">
+                    {a.name}
+                    {a.role ? ` · ${a.role}` : ""}
+                  </Typography>
+                  {a.goal && (
+                    <Typography variant="body2" color="text.secondary">
+                      {a.goal}
+                    </Typography>
+                  )}
+                </Box>
+              ))}
+            </Stack>
+          </CardContent>
+        </Card>
+      ) : (
+        id && <SwarmView runId={id} active={active} />
+      )}
     </Box>
   );
 }

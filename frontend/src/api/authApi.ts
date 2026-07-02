@@ -1,7 +1,7 @@
 // Auth API (login/register). Tokens are stored in localStorage and attached by runsApi.
 import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
+const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "";
 
 interface TokenResponse {
   access_token: string;

@@ -23,10 +23,22 @@ def _sync_url(url: str) -> str:
 
 _settings = get_settings()
 
-async_engine = create_async_engine(_settings.database_url, pool_pre_ping=True, future=True)
+async_engine = create_async_engine(
+    _settings.database_url,
+    pool_pre_ping=True,
+    future=True,
+)
 AsyncSessionLocal = async_sessionmaker(async_engine, class_=AsyncSession, expire_on_commit=False)
 
-sync_engine = create_engine(_sync_url(_settings.database_url), pool_pre_ping=True, future=True)
+sync_engine = create_engine(
+    _sync_url(_settings.database_url),
+    pool_pre_ping=True,
+    future=True,
+    # psycopg 3 prepares statements by default; disable it entirely to avoid
+    # DuplicatePreparedStatement when the same statement name is reused across
+    # pooled/reset connections.
+    connect_args={"prepare_threshold": None},
+)
 SyncSessionLocal = sessionmaker(sync_engine, class_=Session, expire_on_commit=False)
 
 

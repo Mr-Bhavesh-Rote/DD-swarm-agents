@@ -45,9 +45,11 @@ def verifier_node(state: Dict[str, Any], config: Dict[str, Any] | None = None) -
     # 1. Extract cited claims from every section.
     claims = _extract_claims(sections)
 
-    # 2. Coverage accounting over all statements.
+    # 2. Coverage accounting over all statements. An empty/contentless report (no countable
+    #    statements) is a FAILURE, not a vacuous pass — score it 0 so a blank report never
+    #    shows up as 100% coverage (which historically masked silent synthesis failures).
     total_statements, cited_statements, labelled = _coverage_counts(sections)
-    coverage = (cited_statements + labelled) / total_statements if total_statements else 1.0
+    coverage = (cited_statements + labelled) / total_statements if total_statements else 0.0
 
     # 3. LLM-as-judge faithfulness for each cited claim. Verify in small batches so the
     #    JSON response never truncates (one big call over all claims overruns max_tokens
@@ -102,7 +104,9 @@ def verifier_node(state: Dict[str, Any], config: Dict[str, Any] | None = None) -
                     "status": "unsupported",
                 })
 
-    faithfulness = supported / len(claims) if claims else 1.0
+    # No cited claims is only "perfect" if the report actually has content; a blank report
+    # (no statements at all) scores 0 rather than a misleading 100%.
+    faithfulness = (supported / len(claims)) if claims else (1.0 if total_statements else 0.0)
 
     verification = {
         "citation_coverage": round(coverage, 4),
@@ -175,13 +179,19 @@ def _build_verifier_payload(claims: List[Dict[str, Any]], sources_by_id: Dict[in
     lines: List[str] = [
         "Verify each of the following claims against its cited source text. "
         "Return one result per claim index.\n"
+        "IMPORTANT: If a source has NO TEXT (marked [NO SOURCE TEXT AVAILABLE]), you MUST "
+        "mark the claim as supported=false with reason 'Source text not retrievable'. "
+        "Do NOT guess or assume the source supports the claim.\n"
     ]
     cap = get_settings().verifier_source_chars
     for i, c in enumerate(claims):
         lines.append(f"CLAIM {i} [section={c['section_id']}]: {c['text']}")
         for cid in c["citation_ids"]:
             src = sources_by_id.get(cid, {})
-            text = (src.get("content") or src.get("snippet") or "")[:cap]
-            lines.append(f"  SOURCE [{cid}] {src.get('url','')}:\n  {text}")
+            text = (src.get("content") or src.get("snippet") or "").strip()[:cap]
+            if text:
+                lines.append(f"  SOURCE [{cid}] {src.get('url','')}:\n  {text}")
+            else:
+                lines.append(f"  SOURCE [{cid}] {src.get('url','')}: [NO SOURCE TEXT AVAILABLE]")
         lines.append("")
     return "\n".join(lines)

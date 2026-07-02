@@ -46,7 +46,13 @@ class Run(Base):
     subject_type: Mapped[str] = mapped_column(String(20), index=True)
     task: Mapped[str] = mapped_column(Text, default="")
     status: Mapped[str] = mapped_column(String(20), default="queued", index=True)
-    # queued/planning/researching/synthesizing/verifying/done/failed/cancelled
+    # queued/planning/researching/synthesizing/verifying/done/needs_review/failed/cancelled
+    # How the planner builds the swarm: "template" = deterministic YAML (cheap, bounded),
+    # "ai" = orchestrator model decomposes the task into a custom swarm (§4.1 path 3).
+    planning_mode: Mapped[str] = mapped_column(String(20), default="template")
+    # Per-run cap on AI-planned research agents (None = system MAX_SUBAGENTS). Ignored in
+    # template mode, where the swarm size is fixed by the YAML.
+    max_research_agents: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     model_config_json: Mapped[dict] = mapped_column("model_config", JSONB, default=dict)
     created_by: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), index=True)

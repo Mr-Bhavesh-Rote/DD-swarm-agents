@@ -31,6 +31,10 @@ def main() -> int:
     parser.add_argument("--type", dest="subject_type", choices=["company", "individual"], required=True)
     parser.add_argument("--task", default="")
     parser.add_argument("--model", dest="global_model", default=None, help="run-level global default model")
+    parser.add_argument("--planning-mode", dest="planning_mode", choices=["template", "ai"], default="template",
+                        help="template = deterministic YAML swarm; ai = orchestrator builds the swarm from --task")
+    parser.add_argument("--max-research-agents", dest="max_research_agents", type=int, default=None,
+                        help="cap the AI-planned swarm size (ai mode only)")
     parser.add_argument("--out", default="./out")
     args = parser.parse_args()
 
@@ -48,6 +52,8 @@ def main() -> int:
         subject_type=args.subject_type,
         task=args.task,
         model_config=model_config,
+        planning_mode=args.planning_mode,
+        max_research_agents=args.max_research_agents,
     )
 
     print(f"[run {run_id}] {args.subject_type}: {args.subject}")

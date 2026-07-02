@@ -3,49 +3,55 @@
 # Each entry maps an agent `name` -> role/goal/tools. `model`/`provider` are optional
 # per-agent overrides resolved per §4.3. `max_iterations` caps the tool-calling loop.
 
-company_profile_researcher:
-  role: Company Profile Analyst
-  goal: Gather business model, services, footprint, employee count, founding history, verticals and partnerships.
-  tools: [web_search]
-  max_iterations: 5
+overview_ownership_researcher:
+  role: Subject Overview & Ownership Analyst
+  domain: overview_ownership
+  goal: Briefly establish what the subject does plus its corporate structure, ultimate beneficial owners, key management, and any state/political ties or PEP exposure. Light context only — do NOT deep-dive financials or operations.
+  tools: [web_search, scraper]
+  max_iterations: 4
   model: claude-sonnet-4-6        # optional per-agent override (§4.3)
   provider: anthropic
 
-ownership_governance_researcher:
-  role: Ownership & Governance Analyst
-  goal: Map corporate structure, shareholding, ultimate beneficial owners, board composition, key management and any PEP / political exposure.
-  tools: [web_search]
-  max_iterations: 5
+sanctions_legal_researcher:
+  role: Sanctions, Legal & Regulatory Analyst
+  domain: sanctions_legal
+  goal: Hunt for sanctions and export-control designations (OFAC/EU/UN/UK and others), AML matters, litigation, criminal cases, and regulatory enforcement actions against the subject, with dates, jurisdictions and status. You MUST query OFAC, BIS, UN, EU sanctions and PACER before finishing.
+  tools: [web_search, scraper, ofac_sdn_search, ofac_nonsdn_search, bis_entity_list_search, un_sanctions_search, eu_sanctions_search, pacer_search]
+  max_iterations: 8
   model: claude-sonnet-4-6
   provider: anthropic
 
-financial_performance_researcher:
-  role: Financial Performance Analyst
-  goal: Collect revenue, profitability, funding rounds, valuations, filings and any audited or reported financial figures with their basis.
-  tools: [web_search]
-  max_iterations: 5
+adverse_conduct_researcher:
+  role: Adverse Conduct & Human-Rights Analyst
+  domain: adverse_conduct
+  goal: "Investigate corruption/bribery/fraud allegations, human-rights and labor abuses, controversial or dual-use/military products and their end-use affecting the subject. CRITICAL: explicitly search for the subject's products being used in weapons, military, or controversial contexts (e.g., white phosphorus, chemical weapons precursors, cluster munitions, arms components, military supply chains). Search for '[subject name] weapons', '[subject name] white phosphorus', '[subject name] military', '[subject name] munitions'. Also investigate FCPA/UK Bribery Act exposure and federal procurement. You MUST query FPDS, USASpending, OCCRP and Who Profits before finishing."
+  tools: [web_search, scraper, fpds_search, usaspending_search, occrp_search, who_profits_search]
+  max_iterations: 8
   model: claude-sonnet-4-6
   provider: anthropic
 
-legal_regulatory_researcher:
-  role: Legal & Compliance Analyst
-  goal: Investigate regulatory filings, litigation, sanctions, AML/anti-corruption matters and jurisdictional risk.
-  tools: [web_search]
-  max_iterations: 5
+adverse_media_esg_researcher:
+  role: Adverse Media & Environmental Analyst
+  domain: adverse_media_esg
+  goal: Survey adverse media, reputational controversies, environmental harm and ESG issues, and risky counterparty/jurisdictional exposure affecting the subject. You MUST query EPA ECHO, OSHA, and Violation Tracker before finishing.
+  tools: [web_search, scraper, epa_echo_search, osha_search, violation_tracker_search]
+  max_iterations: 8
   model: claude-sonnet-4-6
   provider: anthropic
 
-reputation_media_researcher:
-  role: Reputational & Media Analyst
-  goal: Survey news, adverse media, ESG/environmental/community issues and procurement / tendering / counterparty concerns.
-  tools: [web_search, scraper]
-  max_iterations: 5
+pep_ownership_risk_researcher:
+  role: PEP & Ownership Risk Analyst
+  domain: pep_ownership_risk
+  goal: Check for politically exposed persons (PEPs), state-owned enterprise ties, and ownership structures that may indicate heightened risk. You MUST query OFAC, PACER, and Who Profits before finishing.
+  tools: [web_search, scraper, ofac_sdn_search, pacer_search, who_profits_search]
+  max_iterations: 6
   model: claude-sonnet-4-6
   provider: anthropic
 
 risk_aggregator:
   role: Risk Consolidation Analyst
-  goal: Consolidate and deduplicate all research findings into the required risk categories with severity ratings.
+  domain: overview_ownership
+  goal: Consolidate and deduplicate all research findings into the required derogatory/adverse risk categories with severity ratings.
   tools: [code_executor]
   max_iterations: 4
   model: claude-opus-4-8

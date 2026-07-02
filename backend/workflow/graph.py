@@ -52,6 +52,8 @@ def initial_state(
     model_config: Optional[dict] = None,
     plan_override: Optional[dict] = None,
     uploaded_file_ids: Optional[list] = None,
+    planning_mode: str = "template",
+    max_research_agents: Optional[int] = None,
 ) -> dict:
     return {
         "run_id": run_id,
@@ -61,6 +63,8 @@ def initial_state(
         "model_config": model_config or {},
         "plan_override": plan_override,
         "uploaded_file_ids": uploaded_file_ids or [],
+        "planning_mode": planning_mode,
+        "max_research_agents": max_research_agents,
         "raw_outputs": [],
         "findings": [],
         "sources_raw": [],

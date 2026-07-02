@@ -1,7 +1,11 @@
-// SwarmView (§8.1 Run Detail): live swarm view driven by SSE. Planner status, each
-// research agent as a card, then aggregator/writer/verifier.
+// SwarmView (§8.1 Run Detail): live swarm view driven by SSE while the run is active, with
+// a durable fallback to the persisted raw report once it ends (the live stream is ephemeral
+// Redux state, so after completion / on reload there are no live events — without this
+// fallback the agent cards would vanish even though the data is stored in the DB).
 import { Box, Card, CardContent, Chip, CircularProgress, LinearProgress, Stack, Typography } from "@mui/material";
 import { useAppSelector } from "../../app/store";
+import { useGetRawQuery } from "../../api/runsApi";
+import type { AgentCard } from "../../types";
 
 const PIPELINE = ["planner", "aggregator", "synthesizer", "verifier", "renderer"];
 
@@ -16,9 +20,26 @@ const isDone = (s?: string) => s === "completed" || s === "done";
 
 export default function SwarmView({ runId, active = false }: { runId: string; active?: boolean }) {
   const stream = useAppSelector((s) => s.runStream.byRun[runId]);
+  const hasLiveAgents = !!stream && Object.keys(stream.agents).length > 0;
 
-  if (!stream) {
-    // No live events yet — show a spinner while the run is active, else nothing.
+  // Fall back to the persisted raw report when there's no live stream (run ended / page
+  // reloaded). Skip the fetch while the run is active or live agents are present.
+  const { data: raw } = useGetRawQuery(runId, { skip: active || hasLiveAgents });
+
+  // Prefer live stream agents; otherwise reconstruct cards from persisted agent_outputs.
+  const agents: AgentCard[] = hasLiveAgents
+    ? Object.values(stream!.agents)
+    : (raw?.agent_outputs ?? []).map((ao) => ({
+        agent: ao.agent,
+        role: ao.role,
+        model: ao.model,
+        status: "completed",
+        n_findings: ao.findings?.length ?? 0,
+        n_tool_calls: ao.tool_calls?.length ?? 0,
+      }));
+
+  if (agents.length === 0) {
+    // No live events and nothing persisted yet — spinner while active, else nothing.
     return active ? (
       <Stack direction="row" spacing={1} alignItems="center" sx={{ my: 2 }}>
         <CircularProgress size={18} />
@@ -32,25 +53,26 @@ export default function SwarmView({ runId, active = false }: { runId: string; ac
     ) : null;
   }
 
-  const agents = Object.values(stream.agents);
-
   return (
     <Box>
-      <Stack direction="row" spacing={1} sx={{ mb: 2, flexWrap: "wrap", alignItems: "center" }}>
-        {PIPELINE.map((node) => {
-          const st = stream.nodes[node]?.status;
-          const inProgress = active && !!stream.nodes[node] && !isDone(st);
-          return (
-            <Chip
-              key={node}
-              icon={inProgress ? <CircularProgress size={12} sx={{ ml: 1 }} /> : undefined}
-              label={`${node}: ${st ?? "pending"}`}
-              color={statusColor(st)}
-              variant={stream.nodes[node] ? "filled" : "outlined"}
-            />
-          );
-        })}
-      </Stack>
+      {/* Pipeline node chips only exist in live mode (the persisted fallback has no per-node stream). */}
+      {stream && (
+        <Stack direction="row" spacing={1} sx={{ mb: 2, flexWrap: "wrap", alignItems: "center" }}>
+          {PIPELINE.map((node) => {
+            const st = stream.nodes[node]?.status;
+            const inProgress = active && !!stream.nodes[node] && !isDone(st);
+            return (
+              <Chip
+                key={node}
+                icon={inProgress ? <CircularProgress size={12} sx={{ ml: 1 }} /> : undefined}
+                label={`${node}: ${st ?? "pending"}`}
+                color={statusColor(st)}
+                variant={stream.nodes[node] ? "filled" : "outlined"}
+              />
+            );
+          })}
+        </Stack>
+      )}
 
       <Typography variant="subtitle1" gutterBottom>
         Research swarm — {agents.filter((a) => a.status === "completed").length}/{agents.length} completed
@@ -92,7 +114,7 @@ export default function SwarmView({ runId, active = false }: { runId: string; ac
         })}
       </Box>
 
-      {stream.nodes["verifier"]?.detail && (
+      {stream?.nodes["verifier"]?.detail && (
         <Box sx={{ mt: 2 }}>
           <Typography variant="subtitle1">Verifier</Typography>
           <Typography variant="body2">

@@ -2,9 +2,13 @@
 .env
 backend/.env
 backend/.env-dev
+backend/.env.bak
 frontend/.env
 frontend/.env-dev
 *.env.local
+
+# Generated presentations
+*.pptx
 
 # Local run artifacts (pids + logs from run-local.sh)
 .local-run/
