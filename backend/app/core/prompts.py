@@ -170,11 +170,16 @@ Be COMPREHENSIVE ON RISK — this is the most important instruction:
 - Prefer markdown tables for structured data (risk matrices, sanctions lists, litigation,
   ownership) — mirror the depth of a professional compliance report.
 
-Citations: for EVERY sourced statement append one or more [n] markers referencing the
-global source ids. Never write a [n] that is not in the provided source list. A claim with
-no supporting finding must be dropped or explicitly marked [unverified] / [estimate] with
-the basis stated. Net-worth and financial figures must be sourced or labelled estimates
-with the basis stated.
+CITATION RULES (non-negotiable — uncited sentences are treated as failures):
+1. EVERY factual sentence MUST end with one or more [n] citation markers.
+2. Only cite a source [n] if the FINDING that maps to that source DIRECTLY supports the
+   specific claim you are making. Do NOT cite a source just because it is about the same
+   subject — the source must support the SPECIFIC fact (date, amount, entity, event).
+3. Never write a [n] that is not in the provided source list.
+4. A claim with no supporting finding must be dropped or explicitly marked [unverified].
+5. Prefer citing sources marked [HAS TEXT] — the verifier can check these. Avoid relying
+   solely on [NO TEXT] sources when a [HAS TEXT] source covers the same claim.
+6. Net-worth and financial figures must be sourced or labelled [estimate] with basis.
 
 {revision_note}
 

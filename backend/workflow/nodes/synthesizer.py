@@ -17,14 +17,15 @@ from workflow.models import resolve_model
 
 
 class SubjectOverview(BaseModel):
-    """Structured, length-capped Subject Overview section."""
+    """Structured, length-capped Subject Overview section.
+    Each field ending in _cited should contain inline [n] citation markers."""
     legal_name: str = Field(default="", max_length=200)
     jurisdiction: str = Field(default="", max_length=120)
-    business_one_liner: str = Field(default="", max_length=200)
+    business_one_liner: str = Field(default="", max_length=300)
     stock_listing: Optional[str] = Field(default=None, max_length=120)
-    ubo_summary: str = Field(default="", max_length=400)
-    pep_note: Optional[str] = Field(default=None, max_length=200)
-    state_influence_note: Optional[str] = Field(default=None, max_length=200)
+    ubo_summary: str = Field(default="", max_length=500)
+    pep_note: Optional[str] = Field(default=None, max_length=300)
+    state_influence_note: Optional[str] = Field(default=None, max_length=300)
     citations: List[int] = Field(default_factory=list)
 
 # Required FINAL sections per subject type (§4.4).
@@ -116,6 +117,46 @@ def synthesizer_node(state: Dict[str, Any], config: Dict[str, Any] | None = None
             f"({len(sections)} sections, all empty) — likely an LLM/JSON failure."
         )
 
+    # (B) Pre-verify citation coverage: redraft any section below 60% coverage ONCE.
+    # This catches the "52% uncited" problem before the verifier even runs, saving a
+    # full verifier→revision round-trip for what is essentially a formatting issue.
+    import re
+    _cite_check = re.compile(r"\[(\d+)\]")
+    _sent_check = re.compile(r"(?<=[.!?])\s+(?=[A-Z0-9])")
+    for i, sec in enumerate(sections):
+        body = sec.get("body_markdown", "") or ""
+        sentences = [s.strip() for s in _sent_check.split(body) if len(s.strip()) >= 12]
+        if not sentences:
+            continue
+        cited_count = sum(1 for s in sentences if _cite_check.search(s))
+        coverage = cited_count / len(sentences)
+        if coverage < 0.6:
+            # Redraft this section with explicit citation-gap feedback.
+            sid, title = sec["id"], sec["title"]
+            uncited_examples = [s[:100] for s in sentences if not _cite_check.search(s)][:5]
+            gap_feedback = (
+                f"CITATION GAP: This section has only {coverage:.0%} citation coverage "
+                f"({cited_count}/{len(sentences)} sentences cited). "
+                f"Examples of UNCITED sentences that MUST be fixed:\n"
+                + "\n".join(f"- \"{ex}...\"" for ex in uncited_examples)
+                + "\n\nRewrite the section so that EVERY factual sentence ends with [n] citations. "
+                "Drop any claim you cannot cite."
+            )
+            redraft, redraft_cost = _draft_one_section(
+                writer_model, subject, subject_type, task, sid, title, shared,
+                section_flags=[{"section_id": sid, "claim": "uncited sentences",
+                                "citation_ids": [], "reason": gap_feedback}],
+                callbacks=callbacks,
+            )
+            # Only accept the redraft if it actually improved coverage.
+            redraft_body = redraft.get("body_markdown", "") or ""
+            redraft_sents = [s.strip() for s in _sent_check.split(redraft_body) if len(s.strip()) >= 12]
+            if redraft_sents:
+                redraft_cited = sum(1 for s in redraft_sents if _cite_check.search(s))
+                if redraft_cited / len(redraft_sents) > coverage:
+                    sections[i] = redraft
+            total_cost += redraft_cost
+
     return {
         "draft_sections": sections,
         "cost_usd": total_cost,
@@ -168,72 +209,66 @@ def _draft_one_section(
 def _draft_subject_overview(
     writer_model: str, shared: str, callbacks: Any, max_tokens: int, title: str
 ) -> tuple[Dict[str, Any], float]:
-    """Draft the Subject Overview as a structured, length-capped section."""
+    """Draft the Subject Overview as a structured, length-capped section.
+
+    Uses the same prose-based drafting as other sections for format consistency,
+    but with strict length/scope constraints via the section note.
+    """
+    from app.core.config import get_settings
+
     sys = (
         "You are drafting the Subject Overview & Ownership section of a US-compliance adverse "
-        "due-diligence report. Using ONLY the provided findings, fill the following JSON schema. "
-        "Keep every field within its max_length. Do NOT add shareholder tables, multi-paragraph "
-        "ownership chains, financial statements, or operational deep-dives. Cite only [n] ids from "
-        "the global source list."
+        "due-diligence report. Using ONLY the provided findings, write a BRIEF overview.\n\n"
+        "RULES:\n"
+        "- Keep it to 2-3 SHORT paragraphs maximum.\n"
+        "- Cover: legal name, jurisdiction, one-line business description, key ownership/UBO, "
+        "and any state/political ties or PEP exposure.\n"
+        "- Do NOT add detailed shareholder tables, multi-paragraph ownership chains, financial "
+        "statements, or operational deep-dives.\n"
+        "- EVERY factual sentence MUST end with [n] citation(s) from the global source list. "
+        "Sentences without citations will be flagged as failures.\n"
+        "- Prefer sources marked [HAS TEXT] over [NO TEXT].\n"
     )
     instruction = (
-        "\n\nReturn ONLY a JSON object matching this schema (omit null/empty optional fields):\n"
-        + json.dumps(SubjectOverview.model_json_schema(), indent=2)
-        + "\n\n"
-        + shared
+        f"\n\nWrite ONLY ONE section now: id='subject_overview', title='{title}'.\n"
+        f"Return a single JSON object: {{ \"sections\": [ {{ \"id\": \"subject_overview\", "
+        f"\"title\": \"{title}\", \"body_markdown\": str, \"tables\": [], \"citations\": [int] }} ] }}"
     )
-    result = invoke_json(writer_model, sys, instruction, callbacks=callbacks, max_tokens=max_tokens)
-    try:
-        overview = SubjectOverview.model_validate(result["data"] or {})
-    except Exception:
-        overview = SubjectOverview()
-    body = _render_subject_overview(overview)
-    return _normalize_one(
-        {
-            "id": "subject_overview",
-            "title": title,
-            "body_markdown": body,
-            "tables": [],
-            "citations": overview.citations,
-        },
-        "subject_overview", title,
-    ), result["cost_usd"]
-
-
-def _render_subject_overview(ov: SubjectOverview) -> str:
-    lines: List[str] = []
-    if ov.legal_name:
-        lines.append(f"**Legal name:** {ov.legal_name}")
-    if ov.jurisdiction:
-        lines.append(f"**Jurisdiction:** {ov.jurisdiction}")
-    if ov.business_one_liner:
-        lines.append(f"**Business:** {ov.business_one_liner}")
-    if ov.stock_listing:
-        lines.append(f"**Listing:** {ov.stock_listing}")
-    if ov.ubo_summary:
-        lines.append(f"**UBO / ownership:** {ov.ubo_summary}")
-    if ov.pep_note:
-        lines.append(f"**PEP / political ties:** {ov.pep_note}")
-    if ov.state_influence_note:
-        lines.append(f"**State influence:** {ov.state_influence_note}")
-    return "\n\n".join(lines)
+    result = invoke_json(writer_model, sys, shared + instruction,
+                         callbacks=callbacks, max_tokens=max_tokens)
+    cost = result["cost_usd"]
+    raw = extract_list(result["data"], "sections")
+    match = next((s for s in raw if isinstance(s, dict) and (s.get("body_markdown") or "").strip()), None)
+    return _normalize_one(match or {}, "subject_overview", title), cost
 
 
 def _company_section_note(sid: str) -> str:
-    """Per-section drafting guidance that enforces the US-compliance adverse-DD framing."""
+    """Per-section drafting guidance that enforces the US-compliance adverse-DD framing.
+
+    Every section note ends with the citation enforcement rule so uncited prose is never
+    generated — this is the primary lever for solving the 52% uncited problem.
+    """
+    _CITE_RULE = (
+        "\n\nCITATION RULE (mandatory): EVERY factual sentence MUST end with one or more "
+        "[n] citation markers from the global source list. Sentences without citations WILL "
+        "BE FLAGGED as failures. If you cannot cite a claim, either drop it or mark it "
+        "[unverified]. Prefer citing sources marked [HAS TEXT] over [NO TEXT]. "
+        "Only cite a source if the FINDING it maps to actually supports the specific claim — "
+        "do NOT cite loosely related sources."
+    )
     if sid == "executive_summary":
         return (
             " Open with the MOST MATERIAL derogatory/adverse findings about the subject "
             "(sanctions, litigation, human-rights, controversial products, corruption, etc.). "
             "Two or three tight paragraphs — this is a compliance screening, not an investment memo. "
-            "Do NOT include any investment recommendation."
+            "Do NOT include any investment recommendation." + _CITE_RULE
         )
     if sid == "subject_overview":
         return (
             " Keep this BRIEF (a few short paragraphs): what the subject does, corporate structure, "
             "ultimate beneficial owners, key management, and any state/political ties or PEP exposure. "
             "Mention operations and financials ONLY as light context needed to understand the subject — "
-            "do NOT produce detailed financial statements, ratios, or operational deep-dives."
+            "do NOT produce detailed financial statements, ratios, or operational deep-dives." + _CITE_RULE
         )
     if sid == "risk_issues":
         return (
@@ -242,14 +277,15 @@ def _company_section_note(sid: str) -> str:
             "Organize by these subcategories where supported, omitting any with no findings: "
             + ", ".join(COMPANY_RISK_SUBCATEGORIES)
             + ". For each issue give specifics (who, what, when, jurisdiction, status) and severity."
+            + _CITE_RULE
         )
     if sid == "compliance_assessment":
         return (
             " Provide an OVERALL compliance/adverse-risk assessment: a risk rating (e.g. High/Medium/Low) "
             "with rationale, the confidence/reliability of sources, and notable information gaps. "
-            "This is a compliance conclusion — do NOT make an investment recommendation."
+            "This is a compliance conclusion — do NOT make an investment recommendation." + _CITE_RULE
         )
-    return ""
+    return _CITE_RULE
 
 
 def _build_shared_context(state: Dict[str, Any]) -> str:

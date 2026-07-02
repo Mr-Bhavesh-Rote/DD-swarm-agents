@@ -159,13 +159,24 @@ def _extract_claims(sections: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     return claims
 
 
+_SKIP_RE = re.compile(
+    r"^(\s*\|)"                # table rows
+    r"|^(\s*#{1,6}\s)"         # markdown headers
+    r"|^(\s*[-*]\s*$)"         # list markers with no content
+    r"|^(\s*---)"              # horizontal rules / table separators
+    r"|^(\*\*[^*]+\*\*\s*$)"   # bold-only labels (e.g. "**Legal name:**")
+)
+
+
 def _coverage_counts(sections: List[Dict[str, Any]]) -> Tuple[int, int, int]:
     total = cited = labelled = 0
     for sec in sections:
         body = sec.get("body_markdown", "") or ""
         for sentence in _SENT_SPLIT.split(body):
             s = sentence.strip()
-            if len(s) < 12:  # skip headers / fragments
+            if len(s) < 12:  # skip fragments
+                continue
+            if _SKIP_RE.match(s):  # skip non-prose elements
                 continue
             total += 1
             if _CITE_RE.search(s):
