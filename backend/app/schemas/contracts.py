@@ -172,6 +172,24 @@ class Verification(BaseModel):
     flags: List[VerificationFlag] = Field(default_factory=list)
 
 
+class QualityGateResult(BaseModel):
+    gate: str
+    status: Literal["pass", "fail"]
+    threshold: float = 0.0
+    actual: float = 0.0
+    message: str = ""
+
+
+class QualityAssessment(BaseModel):
+    status: Literal["pass", "pass_with_caveats", "fail"] = "fail"
+    quality_score: int = 0
+    gates_passed: int = 0
+    gates_total: int = 4
+    gates: List[QualityGateResult] = Field(default_factory=list)
+    finding_segmentation: Dict[str, int] = Field(default_factory=dict)
+    recommendations: List[str] = Field(default_factory=list)
+
+
 class FinalReport(BaseModel):
     run_id: str
     subject: str
@@ -179,6 +197,7 @@ class FinalReport(BaseModel):
     generated_at: str
     model_summary: Dict[str, str] = Field(default_factory=dict)
     verification: Verification = Field(default_factory=Verification)
+    quality_assessment: Dict[str, Any] = Field(default_factory=dict)
     sections: List[ReportSection] = Field(default_factory=list)
     sources: List[Source] = Field(default_factory=list)
 

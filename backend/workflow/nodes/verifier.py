@@ -137,8 +137,8 @@ def verifier_node(state: Dict[str, Any], config: Dict[str, Any] | None = None) -
 
 
 def route_after_verify(state: Dict[str, Any]) -> str:
-    """Conditional edge: revise (back to synthesizer) or finalize (renderer)."""
-    return "synthesizer" if state.get("needs_revision") else "renderer"
+    """Conditional edge: revise (back to synthesizer) or proceed to quality gates."""
+    return "synthesizer" if state.get("needs_revision") else "quality_gate"
 
 
 # --------------------------------------------------------------------------------------

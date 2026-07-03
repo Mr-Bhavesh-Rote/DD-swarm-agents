@@ -12,6 +12,7 @@ from langgraph.graph import END, START, StateGraph
 
 from workflow.nodes.aggregator import aggregator_node
 from workflow.nodes.planner import planner_node
+from workflow.nodes.quality_gate import quality_gate_node
 from workflow.nodes.renderer import renderer_node
 from workflow.nodes.research import dispatch_research, research_agent_node
 from workflow.nodes.synthesizer import synthesizer_node
@@ -20,7 +21,13 @@ from workflow.state import GraphState
 
 
 def build_graph(checkpointer: Optional[Any] = None):
-    """Compile the workflow graph. Pass a checkpointer (Postgres in prod) for resumable runs."""
+    """Compile the workflow graph. Pass a checkpointer (Postgres in prod) for resumable runs.
+
+    Pipeline:
+      planner -> research_agent* -> aggregator -> synthesizer -> verifier
+        verifier --(revise)--> synthesizer
+        verifier --(ok)--> quality_gate -> renderer -> END
+    """
     g = StateGraph(GraphState)
 
     g.add_node("planner", planner_node)
@@ -28,6 +35,7 @@ def build_graph(checkpointer: Optional[Any] = None):
     g.add_node("aggregator", aggregator_node)
     g.add_node("synthesizer", synthesizer_node)
     g.add_node("verifier", verifier_node)
+    g.add_node("quality_gate", quality_gate_node)
     g.add_node("renderer", renderer_node)
 
     g.add_edge(START, "planner")
@@ -36,8 +44,9 @@ def build_graph(checkpointer: Optional[Any] = None):
     g.add_edge("research_agent", "aggregator")
     g.add_edge("aggregator", "synthesizer")
     g.add_edge("synthesizer", "verifier")
-    # Revise loop or finalize.
-    g.add_conditional_edges("verifier", route_after_verify, ["synthesizer", "renderer"])
+    # Revise loop or quality gate.
+    g.add_conditional_edges("verifier", route_after_verify, ["synthesizer", "quality_gate"])
+    g.add_edge("quality_gate", "renderer")
     g.add_edge("renderer", END)
 
     return g.compile(checkpointer=checkpointer)

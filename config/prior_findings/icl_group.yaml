@@ -1,0 +1,24 @@
+# Prior findings from manual due diligence that automated research has not surfaced.
+# These are injected into the synthesizer context so they appear in the final report.
+# Each finding must have: claim, tag (CONFIRMED/REPORTED/UNVERIFIED), category, source_description.
+
+subject_patterns:
+  - "ICL Group"
+  - "ICL Group Ltd"
+  - "Israel Chemicals"
+
+findings:
+  - claim: "Phoenix Holdings Ltd. holds approximately 5.01-6.39% of ICL Group shares. AP Investments III Ltd. (UK), which controls Phoenix Financial, has been associated with Jared Kushner (Trump son-in-law, former White House official). This connection could not be confirmed or denied from publicly available sources and requires direct verification against Phoenix Holdings corporate registry and AP Investments III filings at Companies House (UK)."
+    tag: "UNVERIFIED"
+    category: "PEP / Ownership Risk"
+    source_description: "Prior manual due diligence (January 2026); requires verification against Phoenix Holdings corporate registry and AP Investments III Ltd. filings at Companies House (UK)"
+
+  - claim: "The Supreme Court of Israel ordered ICL to pay ILS 250 million (approximately $68 million USD) in connection with water tariff claims in December 2025. This ruling represents a material adverse legal outcome and may be related to the $80 million legal provision disclosed in ICL's Q4 2025 earnings release."
+    tag: "CONFIRMED"
+    category: "Legal & Litigation"
+    source_description: "Prior manual due diligence (January 2026, case reference TDI #177759); primary court record not retrieved from online sources — verify against Israeli Supreme Court records"
+
+  - claim: "Israel's Ministry of Environmental Protection (Green Police) opened a second criminal investigation following a June 2022 Dead Sea brine leak, in addition to the ongoing criminal investigation related to the 2017 Ashalim Creek spill."
+    tag: "REPORTED"
+    category: "Legal & Litigation"
+    source_description: "ICL Form 20-F self-disclosure; status of second investigation not confirmed in available sources"

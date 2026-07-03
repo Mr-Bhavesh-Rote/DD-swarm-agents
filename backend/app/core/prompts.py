@@ -39,6 +39,11 @@ WHAT TO HUNT FOR (compliance/adverse screening):
 - For products/chemicals: investigate what specific compounds, materials, or technologies
   the subject produces that may be export-controlled, weapons-related, or controversial.
   Search explicitly for the subject's products being used in military or weapons contexts.
+- OWNERSHIP: identify ALL shareholders/investors with >5% stakes BY NAME and PERCENTAGE.
+  Search for politically connected owners (politicians, their families, sovereign wealth
+  funds). This is critical for PEP screening.
+- COURT RULINGS & FINES: search for recent court judgments, penalties, and settlements
+  with specific monetary amounts, dates, courts, and jurisdictions.
 - Report ACTUAL derogatory issues affecting the subject — not the subject's own
   risk-management program or compliance initiatives, and not investment merits.
 
@@ -54,6 +59,10 @@ Rules (non-negotiable):
 - For every factual claim, record the exact source URL you took it from.
 - Do not infer, embellish, or assert anything a source does not support.
 - Label any estimate or unverified item explicitly.
+- DO NOT use Wikipedia as a source. Use SEC filings (Form 20-F, Form 6-K, DEF 14A),
+  company registries, regulatory databases, or court records instead.
+- For Company Overview facts (business description, employees, divisions), use
+  SEC filings or official company filings, NOT Wikipedia.
 
 Return BOTH, as a single JSON object:
   "narrative_markdown": full, unedited account of findings (for the RAW report)
@@ -123,67 +132,70 @@ You are the report synthesizer (writer). Draft the FINAL report for:
   Subject: {subject}  ({subject_type})
 Task: {task}
 
-This is a US-COMPLIANCE adverse due-diligence report. It is NOT an investment analysis,
-NOT a financial review, and NOT a business profile. The audience is compliance analysts
-evaluating risk from a US regulatory perspective.
+This is a US-COMPLIANCE adverse due-diligence report. The audience is compliance analysts.
 
-REPORT STRUCTURE — use these sections in this order:
-1. Subject Overview (BRIEF — 1-2 paragraphs max: what the entity is, where headquartered,
-   what it does at a high level. Only enough to orient the reader.)
-2. Ownership & Control (BRIEF — key shareholders, UBOs, state ties. Only if compliance-
-   relevant, e.g., state ownership, PEP connections, special government shares.)
-3. Sanctions & Export Controls (COMPREHENSIVE — all designations, restricted lists,
-   export-controlled products/chemicals, relevant jurisdictions)
-4. Controversial Products & Military/Weapons Involvement (COMPREHENSIVE — dual-use
-   products, weapons components, chemical weapons precursors, military contracts, and
-   documented end-use in military/weapons contexts. THIS IS CRITICAL.)
-5. Legal & Regulatory Actions (COMPREHENSIVE — litigation, enforcement, fines,
-   criminal cases, with dates/jurisdictions/status)
-6. Corruption, Bribery & Fraud (any FCPA, UK Bribery Act, or other anti-corruption issues)
-7. Human Rights & Labor Issues (abuses, controversies, forced labor concerns)
-8. Environmental Violations (EPA actions, pollution, chemical incidents)
-9. Adverse Media & Reputational Risk (significant negative coverage)
-10. Risk Summary (table of key risks with severity ratings)
+REPORT STRUCTURE — exactly 4 sections:
+1. COMPANY OVERVIEW — Brief factual description (50-100 words): what the company does,
+   business lines, size (revenue/employees), geographic scope, key jurisdictions.
+2. COMPANY OWNERSHIP — ALL shareholders with percentages, ultimate beneficial owners,
+   control chains, PEP connections. This section MUST NOT be blank.
+3. RISK ISSUES — organized into three subsections:
+   - CONFIRMED RISKS [CONFIRMED]: verified from official/regulatory sources
+   - REPORTED ALLEGATIONS [REPORTED]: credible journalist/news claims, not yet verified
+   - UNVERIFIED ITEMS [UNVERIFIED]: claims lacking verification
+4. PEP STATUS — All politically exposed persons: name, status, role, PEP level,
+   sanctions history, net worth, government connections. End with overall PEP risk rating.
 
-BANNED — do NOT include any of the following:
-- Detailed financial statements, revenue/profit figures, financial ratios, or balance
-  sheet analysis. ZERO financial deep-dives.
-- Investment recommendations, market positioning, or competitive analysis.
-- Praise or description of the subject's own compliance/risk-management programs.
-- Sections titled "Financial Overview," "Market Position," "Investment Considerations,"
-  or anything similar.
+BANNED:
+- Recommendation language: NEVER write "should", "recommend", "warrants investigation",
+  "US counterparty should". State FACTS, not advice.
+- Financial deep-dives, investment analysis, revenue breakdowns, financial ratios.
+- Praise of the subject's compliance/risk-management programs.
+- Verbose paragraphs. Be CONCISE and DIRECT. Use bullet points and structured notation
+  (e.g. "Supply chain: Bayer → ICL → US Army → Israeli military").
+- Blank sections. Every section MUST have content.
+- Wikipedia as a source. NEVER cite Wikipedia. Use SEC filings, regulatory databases,
+  or court records instead. If Wikipedia is the only source for a fact, re-source it
+  from the SEC filing (Form 20-F) or drop it.
 
-You are given a CONSOLIDATED, STRUCTURED FINDINGS list and a GLOBALLY NUMBERED source list.
-You may ONLY write claims that are directly supported by the findings below. Every sentence
-must be traceable to a specific finding and cite the corresponding global source id(s) as [n].
+TONE: Direct, factual, professional. Replace wordy descriptions with concise notation.
+  BAD: "The documented supply chain runs from ICL through the US Army to Israel, creating
+       a reputational and potential legal nexus between commercial operations and alleged
+       war crimes."
+  GOOD: "Supply chain: ICL → US Army → Israeli military. IDF documented using white
+        phosphorus in Gaza/Lebanon (HRW, Amnesty International) [n]."
 
-Do NOT invent facts, dates, figures, or relationships that are not in the findings. If a
-topic is not covered by the findings, omit it or explicitly mark it [unverified] with the
-basis stated. Do NOT use the source list as a list of "suggested" topics to write about.
+You are given CONSOLIDATED FINDINGS and a GLOBALLY NUMBERED source list.
+Write ONLY claims supported by findings. Cite every factual sentence with [n].
 
-Be COMPREHENSIVE ON RISK — this is the most important instruction:
-- Preserve ALL material detail from the findings about DEROGATORY/ADVERSE issues: every
-  sanction, lawsuit, enforcement action, human-rights or environmental controversy,
-  controversial/dual-use product, corruption allegation, date, entity, jurisdiction and status.
-- Reorganize and de-duplicate the findings into the required sections and format them
-  cleanly (prose + markdown tables), but keep the risk substance complete.
-- Prefer markdown tables for structured data (risk matrices, sanctions lists, litigation,
-  ownership) — mirror the depth of a professional compliance report.
+CITATION RULES (non-negotiable):
+1. EVERY factual sentence MUST end with [n] citation markers.
+2. Only cite a source if the FINDING directly supports the SPECIFIC claim.
+3. Never write a [n] not in the source list.
+4. Uncitable claims must be dropped or marked [unverified].
+5. Prefer [HAS TEXT] sources over [NO TEXT] sources.
 
-CITATION RULES (non-negotiable — uncited sentences are treated as failures):
-1. EVERY factual sentence MUST end with one or more [n] citation markers.
-2. Only cite a source [n] if the FINDING that maps to that source DIRECTLY supports the
-   specific claim you are making. Do NOT cite a source just because it is about the same
-   subject — the source must support the SPECIFIC fact (date, amount, entity, event).
-3. Never write a [n] that is not in the provided source list.
-4. A claim with no supporting finding must be dropped or explicitly marked [unverified].
-5. Prefer citing sources marked [HAS TEXT] — the verifier can check these. Avoid relying
-   solely on [NO TEXT] sources when a [HAS TEXT] source covers the same claim.
-6. Net-worth and financial figures must be sourced or labelled [estimate] with basis.
+[CONFIRMED] TAG RULES (non-negotiable):
+Before applying [CONFIRMED], ALL THREE must be true:
+1. Source is a government database, court record, regulatory database, or official
+   government publication. If NO → do not use [CONFIRMED].
+2. Source text was actually retrieved ([HAS TEXT]). If NO → do not use [CONFIRMED].
+3. Source text explicitly states the specific claim (amount, date, party, outcome).
+   If NO → do not use [CONFIRMED].
+
+Source-type rules:
+- Government/regulatory source + retrieved text → [CONFIRMED]
+- NGO source (HRW, Amnesty International) → [REPORTED — source name]
+- Advocacy source (ASEED, AFSC, Who Profits) → [REPORTED — source name, advocacy org]
+- Credible journalism → [REPORTED — source name]
+- SEC filing self-disclosure of adverse risk → [REPORTED — self-disclosure]
+- SEC filing of factual data (provisions, headcount, ownership) → [CONFIRMED]
+- Source text NOT retrieved → [UNVERIFIED] regardless of source type
+- Wikipedia → NEVER cite. Find the original source.
 
 {revision_note}
 
-Return a single JSON object (body_markdown should be long and detailed for risk sections):
+Return a single JSON object:
   {{ "sections": [ {{ "id": str, "title": str, "body_markdown": str,
                       "tables": [ {{ "title": str, "columns": [str], "rows": [[str]] }} ],
                       "citations": [int] }} ] }}

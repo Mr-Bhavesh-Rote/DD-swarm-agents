@@ -82,9 +82,29 @@ def aggregator_node(state: Dict[str, Any], config: Dict[str, Any] | None = None)
         except Exception:
             buckets = []
 
+    # 5. Quality enrichment: classify findings and detect circular deps so the
+    #    synthesizer can segment the report into Core/Analysis/Unverified/Advocacy.
+    all_sources = registry.sources(include_content=True)
+    sources_by_id = {s["id"]: s for s in all_sources}
+
+    from workflow.quality.fact_classifier import classify_all_findings
+    from workflow.quality.circular_deps import detect_all_circular_deps
+    from workflow.quality.source_tiers import compute_finding_confidence
+
+    deduped = classify_all_findings(deduped, sources_by_id, subject)
+    deduped = detect_all_circular_deps(deduped, sources_by_id, subject)
+
+    # Compute per-finding confidence based on source quality.
+    for f in deduped:
+        src_records = [sources_by_id[sid] for sid in f.get("source_ids", []) if sid in sources_by_id]
+        has_cd = f.get("circular_dep", {}).get("has_circular_dep", False)
+        f["confidence_assessment"] = compute_finding_confidence(
+            src_records, subject, has_circular_dep=has_cd,
+        )
+
     return {
         "aggregated_findings": deduped,
-        "sources": registry.sources(include_content=True),
+        "sources": all_sources,
         "buckets": buckets,
         "cost_usd": cost,
         "model_summary": {"aggregator": agg_model},

@@ -39,6 +39,7 @@ def renderer_node(state: Dict[str, Any], config: Dict[str, Any] | None = None) -
         sec["citations"] = ids
 
     source_manifest = _build_source_manifest(state)
+    quality_assessment = state.get("quality_assessment", {})
     final_report = {
         "run_id": run_id,
         "subject": subject,
@@ -46,6 +47,7 @@ def renderer_node(state: Dict[str, Any], config: Dict[str, Any] | None = None) -
         "generated_at": now,
         "model_summary": state.get("model_summary", {}),
         "verification": state.get("verification", {"citation_coverage": 0.0, "faithfulness_score": 0.0, "flags": []}),
+        "quality_assessment": quality_assessment,
         "source_manifest": source_manifest,
         "sections": sections,
         "sources": wire_sources,
@@ -92,11 +94,6 @@ def render_markdown(report: Dict[str, Any], kind: str) -> str:
 
 def _final_markdown(report: Dict[str, Any]) -> str:
     lines: List[str] = [f"# Due-Diligence Report — {report['subject']}", ""]
-    v = report.get("verification", {})
-    lines.append(
-        f"*Citation coverage: {v.get('citation_coverage', 0):.0%} · "
-        f"Faithfulness: {v.get('faithfulness_score', 0):.0%}*\n"
-    )
     src_by_id = {s["id"]: s for s in report.get("sources", [])}
     for sec in report.get("sections", []):
         lines.append(f"## {sec['title']}")
@@ -105,6 +102,7 @@ def _final_markdown(report: Dict[str, Any]) -> str:
             lines.append("")
             lines.append(_md_table(t))
         lines.append("")
+
     lines.append("## Sources Queried")
     manifest = report.get("source_manifest", {})
     if manifest:

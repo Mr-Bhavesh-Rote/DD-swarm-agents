@@ -170,6 +170,7 @@ async def get_run(run_id: uuid.UUID, db: AsyncSession = Depends(get_db), _user=D
     final = (await db.execute(select(Report).where(Report.run_id == run_id, Report.kind == "final"))).scalar_one_or_none()
     summary = _run_summary(run, coverage)
     summary["verification"] = final.verification if final else {}
+    summary["quality_assessment"] = (final.report_json or {}).get("quality_assessment", {}) if final else {}
     summary["model_config"] = run.model_config_json
     # Liveness: a fresh heartbeat (< ~30s) means a worker is actively driving this run;
     # a non-terminal status with no heartbeat means it stalled/died (resumable).
