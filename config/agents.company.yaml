@@ -24,7 +24,7 @@ sanctions_legal_researcher:
 adverse_conduct_researcher:
   role: Adverse Conduct & Human-Rights Analyst
   domain: adverse_conduct
-  goal: "Investigate corruption/bribery/fraud allegations, human-rights and labor abuses, controversial or dual-use/military products and their end-use affecting the subject. CRITICAL: explicitly search for the subject's products being used in weapons, military, or controversial contexts (e.g., white phosphorus, chemical weapons precursors, cluster munitions, arms components, military supply chains). Search for '[subject name] weapons', '[subject name] white phosphorus', '[subject name] military', '[subject name] munitions'. Also investigate FCPA/UK Bribery Act exposure and federal procurement. You MUST query FPDS, USASpending, OCCRP and Who Profits before finishing."
+  goal: "Investigate corruption/bribery/fraud allegations, human-rights and labor abuses, controversial or dual-use/military products and their end-use affecting the subject. CRITICAL: explicitly search for the subject's products being used in weapons, military, or controversial contexts (e.g., white phosphorus, chemical weapons precursors, cluster munitions, arms components, military supply chains). Search for '[subject name] weapons', '[subject name] white phosphorus', '[subject name] military', '[subject name] munitions'. Also investigate FCPA/UK Bribery Act exposure and federal procurement. Search OCCRP for '[subject name] corruption bribery', '[subject name] offshore'. Search for '[subject name] Kazakhgate' or '[subject name] scandal investigation' for corruption cases involving the subject's jurisdiction. You MUST query FPDS, USASpending, OCCRP and Who Profits before finishing."
   tools: [web_search, scraper, fpds_search, usaspending_search, occrp_search, who_profits_search]
   max_iterations: 8
   model: claude-sonnet-4-6
@@ -33,7 +33,7 @@ adverse_conduct_researcher:
 adverse_media_esg_researcher:
   role: Adverse Media & Environmental Analyst
   domain: adverse_media_esg
-  goal: "Survey adverse media, reputational controversies, environmental harm and ESG issues, and risky counterparty/jurisdictional exposure affecting the subject. CRITICAL: search for '[subject name] criminal investigation', '[subject name] police investigation', '[subject name] environmental prosecution', '[subject name] green police' to find ongoing law enforcement investigations. Also search for '[subject name] court ruling fine penalty' to find recent judgments with monetary amounts. You MUST query EPA ECHO, OSHA, and Violation Tracker before finishing."
+  goal: "Survey adverse media, reputational controversies, environmental harm and ESG issues, and risky counterparty/jurisdictional exposure affecting the subject. CRITICAL: search for '[subject name] criminal investigation', '[subject name] police investigation', '[subject name] environmental prosecution' to find ongoing law enforcement investigations. Also search for '[subject name] court ruling fine penalty' to find recent judgments with monetary amounts. Search for '[subject name] environmental fine penalty violation' (generic — covers non-US jurisdictions), '[subject name] pollution spill contamination'. Search OCCRP for '[subject name] offshore shell company'. You MUST query EPA ECHO, OSHA, and Violation Tracker before finishing."
   tools: [web_search, scraper, epa_echo_search, osha_search, violation_tracker_search]
   max_iterations: 8
   model: claude-sonnet-4-6
@@ -42,7 +42,13 @@ adverse_media_esg_researcher:
 pep_ownership_risk_researcher:
   role: PEP & Ownership Risk Analyst
   domain: pep_ownership_risk
-  goal: "Check for politically exposed persons (PEPs), state-owned enterprise ties, and ownership structures that may indicate heightened risk. CRITICAL: search for '[subject name] shareholders percentage', '[subject name] major investors', '[subject name] politically exposed person', '[subject name] SEC proxy shareholder'. For each major shareholder found, do a FOLLOW-UP search: '[shareholder name] politician', '[shareholder name] PEP', '[shareholder name] government' to check if they are politically connected. Search SEC proxy filings (Form DEF 14A) and annual reports (Form 20-F) for shareholder tables. You MUST query OFAC, PACER, and Who Profits before finishing."
+  goal: "Check for politically exposed persons (PEPs), state-owned enterprise ties, and ownership structures that may indicate heightened risk.
+    STEP 1 — OWNERSHIP: Search for '[subject name] shareholders percentage', '[subject name] major investors', '[subject name] SEC proxy shareholder'. Identify ALL shareholders >5%.
+    STEP 2 — BOARD & EXECUTIVES: Search for '[subject name] board of directors', '[subject name] chairman CEO executives'. Identify current and former board members and C-suite.
+    STEP 3 — PEP CHECK ON EACH PERSON: For EVERY shareholder, board member, and executive found, do a FOLLOW-UP search: '[person name] politician', '[person name] PEP', '[person name] government minister', '[person name] investigation corruption'. Check if they hold or held government positions.
+    STEP 4 — HEAD OF STATE & FAMILY: Search for '[subject name] president', '[subject name] government connection', '[subject name] state-owned'. For state-linked entities, identify the head of state and search for their family members' business interests (e.g., '[head of state name] daughter son family business').
+    STEP 5 — OFFSHORE STRUCTURES: Search for '[subject name] offshore', '[subject name] shell company', '[subject name] Cyprus Netherlands BVI Luxembourg'. Check OCCRP for offshore corporate structures.
+    You MUST query OFAC, PACER, and Who Profits before finishing."
   tools: [web_search, scraper, ofac_sdn_search, pacer_search, who_profits_search]
   max_iterations: 10
   model: claude-sonnet-4-6

@@ -28,15 +28,12 @@ COMPANY_SECTIONS = [
 # products, corruption, environmental harm) — NOT the subject's own risk-management posture.
 COMPANY_RISK_SUBCATEGORIES = [
     "Sanctions / Export Controls / AML",
-    "Legal & Litigation (civil, criminal, regulatory enforcement)",
-    "Corruption, Bribery & Fraud",
-    "Human Rights, Labor & Modern Slavery",
-    "Controversial / Dual-Use / Military Products & End-Use",
-    "Environmental Harm & ESG Controversies",
-    "Regulatory & Compliance Breaches",
-    "Reputational & Adverse Media",
-    "State Ownership / Political Ties / PEP Exposure",
-    "Jurisdictional & Counterparty Risk",
+    "Weapons, Military Supply Chain and Dual-Use Products",
+    "Legal and Litigation",
+    "Corruption, Bribery and FCPA",
+    "Human Rights, Labor and Occupied Territory Operations",
+    "Environmental Harm and Regulatory Violations",
+    "Reputational and Adverse Media",
 ]
 INDIVIDUAL_SECTIONS = [
     ("identity_background", "Identity & Background"),
@@ -92,6 +89,18 @@ def synthesizer_node(state: Dict[str, Any], config: Dict[str, Any] | None = None
         )
         sections.append(sec)
         total_cost += cost
+
+    # (0) Code-level guardrail: if company_overview or company_ownership came back blank,
+    # auto-generate a minimal fallback from the findings/narratives so we NEVER ship blank.
+    if subject_type == "company":
+        for i, sec in enumerate(sections):
+            if sec["id"] == "company_overview" and not (sec.get("body_markdown") or "").strip():
+                sections[i]["body_markdown"] = _fallback_company_overview(state)
+            if sec["id"] == "company_ownership" and not (sec.get("body_markdown") or "").strip():
+                sections[i]["body_markdown"] = _fallback_company_ownership(state)
+
+        # (0b) Inject prior must_include findings if the LLM omitted them.
+        _inject_missing_prior_findings(sections, subject)
 
     # (A) Fail loud rather than ship a blank report: if NOTHING came back with content, the
     # synthesis genuinely failed — raise so the run is marked failed (and resumable) instead
@@ -169,8 +178,32 @@ def _draft_one_section(
     sys = build_synthesizer_prompt(subject, subject_type, task, feedback)
 
     section_note = _company_section_note(sid) if subject_type == "company" else ""
+
+    # Inject prior findings relevant to THIS section directly into the instruction
+    # so the LLM cannot miss them (shared context alone is unreliable).
+    prior_injection = ""
+    if subject_type == "company":
+        prior = _load_prior_findings(subject)
+        relevant = []
+        for pf in prior:
+            if not pf.get("include_in_sections"):
+                # No section restriction → include in risk_issues
+                if sid == "risk_issues":
+                    relevant.append(pf)
+            elif sid in pf.get("include_in_sections", []):
+                relevant.append(pf)
+            elif sid == "risk_issues" and not pf.get("include_in_sections"):
+                relevant.append(pf)
+        if relevant:
+            prior_injection = "\n\n⚠️ MANDATORY FINDINGS FOR THIS SECTION — YOU MUST INCLUDE THESE:\n"
+            for pf in relevant:
+                prior_injection += f"\n[{pf['tag']}] ({pf['category']}): {pf['claim']}\n"
+                prior_injection += f"Source: {pf['source_description']}\n"
+            prior_injection += "\nFAILURE TO INCLUDE THE ABOVE FINDINGS IS A CRITICAL ERROR.\n"
+
     instruction = (
-        f"\n\nWrite ONLY ONE section now: id='{sid}', title='{title}'.{section_note}\n"
+        f"\n\nWrite ONLY ONE section now: id='{sid}', title='{title}'.{section_note}"
+        f"{prior_injection}\n"
         f"Return a single JSON object: {{ \"sections\": [ {{ \"id\": \"{sid}\", \"title\": \"{title}\", "
         f"\"body_markdown\": str, \"tables\": [...], \"citations\": [int] }} ] }}"
     )
@@ -199,35 +232,33 @@ def _company_section_note(sid: str) -> str:
         "[unverified]. Prefer citing sources marked [HAS TEXT] over [NO TEXT]. "
         "Only cite a source if the FINDING it maps to actually supports the specific claim — "
         "do NOT cite loosely related sources."
+        "\n\nNO RECOMMENDATIONS (mandatory): NEVER write sentences containing 'should', "
+        "'recommend', 'warrants', 'advisable', 'prudent', 'suggest that', 'ought to', "
+        "'US counterparty should', 'compliance function should'. "
+        "State FACTS ONLY. Replace 'should verify X' with 'X: status unclear' or 'X: not confirmed'. "
+        "Replace 'warrants investigation' with 'status unknown' or 'not independently confirmed'."
     )
     notes = {
         "company_overview": (
-            " Write a BRIEF factual description (50-100 words) of the company:\n"
-            "- What is this company? What do they do (business lines)?\n"
-            "- Size (revenue, employees, if available)\n"
-            "- Geographic scope (where they operate, key jurisdictions)\n"
-            "- Stock listings if any\n"
-            "Keep it SHORT and FACTUAL. No analysis, no opinions, no risk assessment here.\n"
-            "NEVER cite Wikipedia. Source all facts from SEC filings (Form 20-F, 6-K), "
-            "regulatory databases, or official company filings. If a SEC filing source "
-            "exists in the source list, use that instead of Wikipedia."
+            " Write a BRIEF factual description (50-100 words MAX) of the company:\n"
+            "- Full legal name, jurisdiction of incorporation, stock listing (TASE/NYSE)\n"
+            "- Primary business lines (what they make/do)\n"
+            "- Approximate size (employees, countries of operation)\n"
+            "- Key subsidiaries if relevant\n"
+            "ONE short paragraph. Do NOT include: ownership, risk findings, sanctions, "
+            "litigation, OFAC results, or any derogatory information — those go in other sections.\n"
+            "NEVER cite Wikipedia.\n"
+            "Use BOTH the findings list AND the raw agent narratives to gather company facts.\n"
+            "THIS SECTION IS MANDATORY AND MUST NEVER BE BLANK. A blank response is a critical failure."
         ),
         "company_ownership": (
-            " List ALL known shareholders with ownership percentages. For EACH major shareholder:\n"
-            "- Name and percentage\n"
-            "- Who controls them (ultimate beneficial owner)\n"
-            "- Any PEP connections or politically sensitive associations\n"
-            "- Net worth if available\n\n"
-            "Format as a structured list with indentation showing control chains, e.g.:\n"
-            "```\n"
-            "Israel Corporation Ltd.: 43.93%\n"
-            "  — Controlled by: Ofer family\n"
-            "  — Ultimate beneficial owner: Idan Ofer\n"
-            "```\n"
-            "End with a brief OWNERSHIP STRUCTURE summary (concentration, governance risk).\n"
-            "This section MUST NOT be blank. If ownership data is limited, state what IS known "
-            "and note what could not be determined.\n"
-            "Do NOT use recommendation language ('should verify', 'recommend')."
+            " List shareholders with >5% ownership. Keep it CONCISE (100-200 words MAX).\n"
+            "Format: Name: percentage — controlled by [UBO], PEP connections if any.\n"
+            "End with one-line ownership structure note.\n"
+            "This section MUST NOT be blank. No recommendation language.\n"
+            "Use BOTH the findings list AND the raw agent narratives to find ownership data.\n"
+            "Include ANY ownership findings from the MANDATORY PRIOR FINDINGS section "
+            "(look for items tagged [INCLUDE IN: company_ownership])."
         ),
         "risk_issues": (
             " Organize ALL risk findings into THREE subsections with these EXACT headers:\n\n"
@@ -264,27 +295,29 @@ def _company_section_note(sid: str) -> str:
             "- White phosphorus supply contracts, military supply chains → Weapons/Military\n"
             "- Environmental spills, emissions violations → Environmental\n\n"
             "STYLE RULES:\n"
-            "- Use bullet points, be CONCISE and DIRECT\n"
+            "- Use bullet points, be CONCISE and DIRECT — target 400-600 words for this section\n"
             "- State facts, NOT advice. NEVER use 'should', 'recommend', 'warrants investigation'\n"
             "- Use concise supply-chain notation (e.g. 'Bayer → ICL → US Army → Israeli military')\n"
-            "- Include ALL findings from the findings list — do NOT omit any\n"
-            "- Cover ALL risk subcategories where findings exist: "
+            "- Prioritize the MOST MATERIAL findings — consolidate similar items into single bullets\n"
+            "- Each bullet: one finding, one line, with [n] citation at the end\n"
+            "- Include ALL MANDATORY PRIOR FINDINGS in the appropriate subsection\n"
+            "- Cover risk subcategories where findings exist: "
             + ", ".join(COMPANY_RISK_SUBCATEGORIES)
         ),
         "pep_status": (
-            " List ALL identified Politically Exposed Persons in the ownership, management, "
-            "or family connections. For EACH PEP:\n"
-            "- **Name**\n"
-            "- **Status** (e.g., 'Ultimate beneficial owner', 'Significant influence via X')\n"
-            "- **Role** (their position/relationship)\n"
-            "- **PEP Level** (CRITICAL / HIGH / MEDIUM / LOW)\n"
-            "- **Sanctions designations** (OFAC SDN, BIS, UN, EU — state NONE if none found)\n"
-            "- **Net worth** (if available, with source)\n"
-            "- **Government connections** (specific relationships)\n"
-            "- **Additional notes** (investigations, controversies)\n\n"
-            "End with: OVERALL PEP RISK ASSESSMENT: HIGH/MEDIUM-HIGH/MEDIUM/LOW with brief rationale.\n"
-            "If NO PEPs identified, state that clearly.\n"
-            "Do NOT use recommendation language. State facts only."
+            " List identified PEPs CONCISELY (100-200 words MAX). For each:\n"
+            "- Name — Role — PEP Level (CRITICAL/HIGH/MEDIUM/LOW)\n"
+            "- Sanctions status (NONE if none found)\n"
+            "- Key connection (one line)\n\n"
+            "Include ANY PEP findings from the MANDATORY PRIOR FINDINGS section.\n\n"
+            "End with: OVERALL PEP RISK: HIGH/MEDIUM-HIGH/MEDIUM/LOW (one line rationale).\n"
+            "PEP risk scoring guide:\n"
+            "- MEDIUM-HIGH or higher if: billionaire UBO, government golden share/special share, "
+            "any Trump/political family connection, Russian business ties, or multiple PEP-adjacent "
+            "stakeholders\n"
+            "- MEDIUM only if: minor institutional shareholders with no political connections\n"
+            "If NO PEPs identified, state that in one line.\n"
+            "No recommendation language. Facts only."
         ),
     }
     return notes.get(sid, "") + _CITE_RULE
@@ -309,35 +342,34 @@ def _build_shared_context(state: Dict[str, Any]) -> str:
         ft = f.get("finding_type", "analysis")
         source_ids = f.get("source_ids", [])
 
-        # Check source quality for CONFIRMED eligibility.
-        has_gov_source_with_text = False
-        has_sec_source = False
-        all_sources_no_text = True
+        # Check source quality for tag assignment.
+        has_gov_or_sec = False
+        has_any_text = False
         for sid in source_ids:
             src = sources_by_id.get(sid, {})
             url = src.get("url", "")
-            has_text = bool((src.get("content") or "").strip())
-            if has_text:
-                all_sources_no_text = False
+            if bool((src.get("content") or "").strip()):
+                has_any_text = True
             tier = classify_source_tier(url)
-            if tier == SourceTier.TIER_1 and has_text:
-                has_gov_source_with_text = True
-            if "sec.gov" in url.lower() or "edgar" in url.lower():
-                has_sec_source = True
+            if tier == SourceTier.TIER_1 or "sec.gov" in url.lower():
+                has_gov_or_sec = True
 
-        # No text retrieved at all → UNVERIFIED regardless.
-        if all_sources_no_text and source_ids:
-            return "UNVERIFIED"
-        # FACT with government source + text → CONFIRMED
-        if ft == "fact" and (has_gov_source_with_text or has_sec_source):
+        # FACT with government/SEC source → CONFIRMED
+        if ft == "fact" and has_gov_or_sec:
             return "CONFIRMED"
-        # FACT but only NGO/advocacy/journalism sources → REPORTED
+        # FACT with retrieved text from any source → REPORTED (verifiable)
+        if ft == "fact" and has_any_text:
+            return "REPORTED"
+        # FACT with no text → REPORTED (still a factual claim, just unverifiable)
         if ft == "fact":
             return "REPORTED"
         # Analysis → REPORTED
         if ft == "analysis":
             return "REPORTED"
-        # Interpretation/advocacy → UNVERIFIED
+        # Advocacy → UNVERIFIED
+        if ft == "advocacy":
+            return "UNVERIFIED"
+        # Interpretation → UNVERIFIED
         return "UNVERIFIED"
 
     tag_groups: Dict[str, List] = {"CONFIRMED": [], "REPORTED": [], "UNVERIFIED": []}
@@ -391,15 +423,21 @@ def _build_shared_context(state: Dict[str, Any]) -> str:
     # 1c. Inject prior findings from manual due diligence (config/prior_findings/).
     prior = _load_prior_findings(state.get("subject", ""))
     if prior:
-        lines.append("\nPRIOR FINDINGS FROM MANUAL DUE DILIGENCE:")
-        lines.append("These findings are from prior manual investigations and MUST be included "
-                     "in the report. They do NOT have [n] source citations — instead, cite the "
-                     "source description provided. Include them in the appropriate sections "
-                     "(Risk Issues, Company Ownership, PEP Status) with their given tags.")
+        lines.append("\n" + "=" * 60)
+        lines.append("MANDATORY PRIOR FINDINGS — MUST APPEAR IN REPORT")
+        lines.append("=" * 60)
+        lines.append("These findings are from prior manual investigations. They MUST be included "
+                     "in the final report — omitting them is a FAILURE. If a finding mentions "
+                     "checking the source list for a matching reference, scan the GLOBAL SOURCE "
+                     "LIST below and cite the matching [n] if found.")
         for pf in prior:
-            lines.append(f"- [{pf['tag']}] ({pf['category']}) {pf['claim']}")
+            sections_note = ""
+            if pf.get("include_in_sections"):
+                sections_note = f" [INCLUDE IN: {', '.join(pf['include_in_sections'])}]"
+            lines.append(f"\n  MANDATORY: [{pf['tag']}] ({pf['category']}){sections_note}")
+            lines.append(f"  {pf['claim']}")
             lines.append(f"  Source: {pf['source_description']}")
-        lines.append("")
+        lines.append("=" * 60 + "\n")
 
     # 2. Global source list — flag retrievability and tier for the writer.
     lines.append("\nGLOBAL SOURCE LIST (cite ONLY these ids as [n]):")
@@ -451,6 +489,52 @@ def _normalize_one(s: Dict[str, Any], sid: str, title: str) -> Dict[str, Any]:
     }
 
 
+def _fallback_company_overview(state: Dict[str, Any]) -> str:
+    """Extract a minimal company overview from findings and narratives when the writer
+    returns an empty section. Scans for company description keywords."""
+    subject = state.get("subject", "Unknown")
+    # Try to find overview-like content from raw narratives.
+    for ao in state.get("raw_outputs", []):
+        if ao.get("domain") == "overview_ownership":
+            narrative = (ao.get("narrative_markdown") or "").strip()
+            if narrative:
+                # Take the first ~200 chars as a rough overview.
+                first_para = narrative.split("\n\n")[0][:500]
+                if len(first_para) > 30:
+                    return first_para
+    # Fallback: construct from findings mentioning the subject.
+    findings = state.get("aggregated_findings", [])
+    overview_claims = []
+    for f in findings:
+        claim = f.get("claim", "").lower()
+        if any(kw in claim for kw in ("headquartered", "founded", "employees", "revenue",
+                                       "stock", "nyse", "tase", "subsidiary", "operates")):
+            overview_claims.append(f["claim"])
+            if len(overview_claims) >= 3:
+                break
+    if overview_claims:
+        return " ".join(overview_claims)
+    return f"{subject} — company overview data not available from retrieved sources."
+
+
+def _fallback_company_ownership(state: Dict[str, Any]) -> str:
+    """Extract ownership info from findings when the writer returns blank."""
+    findings = state.get("aggregated_findings", [])
+    ownership_claims = []
+    for f in findings:
+        claim = f.get("claim", "").lower()
+        if any(kw in claim for kw in ("shareholder", "ownership", "beneficial owner",
+                                       "stake", "holds", "percent", "%", "shares")):
+            sids = f.get("source_ids", [])
+            cite = f" [{sids[0]}]" if sids else ""
+            ownership_claims.append(f"- {f['claim']}{cite}")
+            if len(ownership_claims) >= 6:
+                break
+    if ownership_claims:
+        return "\n".join(ownership_claims)
+    return "Ownership data not available from retrieved sources."
+
+
 def _load_prior_findings(subject: str) -> List[Dict[str, Any]]:
     """Load prior manual DD findings from config/prior_findings/ YAML files.
 
@@ -475,12 +559,63 @@ def _load_prior_findings(subject: str) -> List[Dict[str, Any]]:
                 continue
             for finding in data.get("findings", []):
                 if isinstance(finding, dict) and finding.get("claim"):
-                    results.append({
+                    entry = {
                         "claim": finding["claim"],
                         "tag": finding.get("tag", "UNVERIFIED"),
                         "category": finding.get("category", "Uncategorized"),
                         "source_description": finding.get("source_description", "Prior manual due diligence"),
-                    })
+                    }
+                    if finding.get("include_in_sections"):
+                        entry["include_in_sections"] = finding["include_in_sections"]
+                    results.append(entry)
         except Exception:
             continue
     return results
+
+
+def _inject_missing_prior_findings(sections: List[Dict[str, Any]], subject: str) -> None:
+    """Code-level guardrail: if must_include prior findings are missing from the report
+    body, append them directly. This guarantees they appear regardless of LLM compliance."""
+    import pathlib
+    import yaml
+
+    prior_dir = pathlib.Path(__file__).resolve().parents[2] / "config" / "prior_findings"
+    if not prior_dir.is_dir():
+        return
+
+    subject_lower = subject.lower()
+    sections_by_id = {s["id"]: s for s in sections}
+
+    for f in prior_dir.glob("*.yaml"):
+        try:
+            data = yaml.safe_load(f.read_text())
+            if not isinstance(data, dict):
+                continue
+            patterns = data.get("subject_patterns", [])
+            if not any(p.lower() in subject_lower for p in patterns):
+                continue
+            for finding in data.get("findings", []):
+                if not isinstance(finding, dict) or not finding.get("must_include"):
+                    continue
+                claim = finding["claim"]
+                tag = finding.get("tag", "UNVERIFIED")
+                category = finding.get("category", "")
+                # Check a signature phrase from the claim to see if LLM included it.
+                # Use first 60 chars as a fingerprint.
+                fingerprint = claim[:60].lower()
+
+                target_sections = finding.get("include_in_sections", ["risk_issues"])
+                for sid in target_sections:
+                    sec = sections_by_id.get(sid)
+                    if not sec:
+                        continue
+                    body = (sec.get("body_markdown") or "").lower()
+                    if fingerprint in body:
+                        continue  # Already present
+                    # Append the finding to the section body.
+                    # Mark as [unverified] for coverage accounting — these are manual DD
+                    # findings without a numbered source in the source list.
+                    bullet = f"\n- [{tag}] ({category}) {claim} [unverified — prior manual due diligence]\n"
+                    sec["body_markdown"] = (sec.get("body_markdown") or "") + bullet
+        except Exception:
+            continue

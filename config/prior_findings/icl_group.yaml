@@ -8,15 +8,26 @@ subject_patterns:
   - "Israel Chemicals"
 
 findings:
-  - claim: "Phoenix Holdings Ltd. holds approximately 5.01-6.39% of ICL Group shares. AP Investments III Ltd. (UK), which controls Phoenix Financial, has been associated with Jared Kushner (Trump son-in-law, former White House official). This connection could not be confirmed or denied from publicly available sources and requires direct verification against Phoenix Holdings corporate registry and AP Investments III filings at Companies House (UK)."
+  - claim: "ICL-IP AMERICA INC held US Army contract W52P1J20R3006 to supply white phosphorus for weapons manufacturing (2020-2025). GAO denied a protest of this contract award on July 17, 2020, confirming the contract relationship. Supply chain: Bayer → ICL-IP America → US Army (Pine Bluff Arsenal) → Israeli military."
+    tag: "CONFIRMED"
+    category: "Weapons / Military Supply Chain"
+    source_description: "GAO protest decision (July 17, 2020, contract W52P1J20R3006) — primary government source. Also: FPDS contract records."
+    must_include: true
+
+  - claim: "Phoenix Holdings Ltd. holds approximately 5.01-6.39% of ICL Group shares. AP Investments III Ltd. (UK), which controls Phoenix Financial, has been associated with Jared Kushner (Trump son-in-law, former White House official). Connection not confirmed or denied from public sources."
     tag: "UNVERIFIED"
     category: "PEP / Ownership Risk"
     source_description: "Prior manual due diligence (January 2026); requires verification against Phoenix Holdings corporate registry and AP Investments III Ltd. filings at Companies House (UK)"
+    must_include: true
+    include_in_sections:
+      - "company_ownership"
+      - "pep_status"
 
-  - claim: "The Supreme Court of Israel ordered ICL to pay ILS 250 million (approximately $68 million USD) in connection with water tariff claims in December 2025. This ruling represents a material adverse legal outcome and may be related to the $80 million legal provision disclosed in ICL's Q4 2025 earnings release."
+  - claim: "Israeli Supreme Court ordered ICL's Dead Sea Works to pay NIS 250 million (~$68 million USD) in water tariff fees (December 2025). NOTE: If sources [9] or [10] in the source list reference this ruling, cite them with [n]."
     tag: "CONFIRMED"
     category: "Legal & Litigation"
-    source_description: "Prior manual due diligence (January 2026, case reference TDI #177759); primary court record not retrieved from online sources — verify against Israeli Supreme Court records"
+    source_description: "Israeli Supreme Court ruling (December 2025, case reference TDI #177759). Check source list for 'NIS 250' or 'Dead Sea water' or 'Supreme Court' — if found, cite that source [n]."
+    must_include: true
 
   - claim: "Israel's Ministry of Environmental Protection (Green Police) opened a second criminal investigation following a June 2022 Dead Sea brine leak, in addition to the ongoing criminal investigation related to the 2017 Ashalim Creek spill."
     tag: "REPORTED"

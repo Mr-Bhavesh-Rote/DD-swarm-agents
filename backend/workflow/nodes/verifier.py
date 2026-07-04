@@ -30,7 +30,7 @@ def _norm_claim(text: str) -> str:
     return " ".join(_CITE_RE.sub("", text or "").lower().split())
 # Split body into sentence-ish statements for coverage accounting.
 _SENT_SPLIT = re.compile(r"(?<=[.!?])\s+(?=[A-Z0-9])")
-_UNVERIFIED_RE = re.compile(r"\[(unverified|estimate)\]", re.IGNORECASE)
+_UNVERIFIED_RE = re.compile(r"\[(unverified|estimate)[^\]]*\]", re.IGNORECASE)
 
 
 def verifier_node(state: Dict[str, Any], config: Dict[str, Any] | None = None) -> Dict[str, Any]:
@@ -56,17 +56,39 @@ def verifier_node(state: Dict[str, Any], config: Dict[str, Any] | None = None) -
     #    and produces unparseable output -> every claim would default to unsupported).
     flags: List[Dict[str, Any]] = []
     supported = 0
+    skipped_no_text = 0
     cost = 0.0
     if claims:
+        # Pre-classify claims: if ALL cited sources have no text, skip from faithfulness
+        # scoring (scraper failure is not a report quality issue). Only verify claims
+        # where at least one source has retrieved text.
+        verifiable_claims: List[Tuple[int, Dict[str, Any]]] = []
+        for i, c in enumerate(claims):
+            has_text = any(
+                bool((sources_by_id.get(cid, {}).get("content") or "").strip())
+                for cid in c["citation_ids"]
+            )
+            if has_text:
+                verifiable_claims.append((i, c))
+            else:
+                skipped_no_text += 1
+                # Still count as "supported" — the claim exists and cites a source,
+                # we just can't verify it due to scraper failure.
+                supported += 1
+
         sys = build_verifier_prompt()
         verdicts: Dict[int, Dict[str, Any]] = {}
         verdicts_by_text: Dict[str, Dict[str, Any]] = {}
 
+        # Build verifiable-only claim list for batching.
+        verifiable_list = [c for _, c in verifiable_claims]
+        verifiable_idx_map = {batch_i: orig_i for batch_i, (orig_i, _) in enumerate(verifiable_claims)}
+
         # Verify batches CONCURRENTLY — they're independent, and running them one-by-one was
         # a major latency sink (each Opus batch ~50s). A thread pool overlaps the network I/O;
         # contextvars are copied so the Langfuse trace context propagates into each thread.
-        batches = [(start, claims[start : start + _VERIFY_BATCH])
-                   for start in range(0, len(claims), _VERIFY_BATCH)]
+        batches = [(start, verifiable_list[start : start + _VERIFY_BATCH])
+                   for start in range(0, len(verifiable_list), _VERIFY_BATCH)]
 
         def _run_batch(start: int, batch: List[Dict[str, Any]]):
             payload = _build_verifier_payload(batch, sources_by_id)
@@ -75,23 +97,22 @@ def verifier_node(state: Dict[str, Any], config: Dict[str, Any] | None = None) -
                 max_tokens=settings.verifier_max_tokens,
             )
 
-        max_workers = min(len(batches), 6)
-        with ThreadPoolExecutor(max_workers=max_workers) as ex:
-            futures = [ex.submit(copy_context().run, _run_batch, s, b) for s, b in batches]
-            for fut in as_completed(futures):
-                start, batch, result = fut.result()
-                cost += result["cost_usd"]
-                for r in extract_list(result["data"], "results"):
-                    # Tolerant matching: accept an explicit integer claim_index, and also key
-                    # by echoed claim text (robust to verifier-prompt version differences).
-                    ci = r.get("claim_index")
-                    if isinstance(ci, int) and 0 <= ci < len(batch):
-                        verdicts[start + ci] = r
-                    if r.get("claim"):
-                        verdicts_by_text[_norm_claim(r["claim"])] = r
+        max_workers = min(len(batches), 6) if batches else 1
+        if batches:
+            with ThreadPoolExecutor(max_workers=max_workers) as ex:
+                futures = [ex.submit(copy_context().run, _run_batch, s, b) for s, b in batches]
+                for fut in as_completed(futures):
+                    start, batch, result = fut.result()
+                    cost += result["cost_usd"]
+                    for r in extract_list(result["data"], "results"):
+                        ci = r.get("claim_index")
+                        if isinstance(ci, int) and 0 <= ci < len(batch):
+                            verdicts[start + ci] = r
+                        if r.get("claim"):
+                            verdicts_by_text[_norm_claim(r["claim"])] = r
 
-        for i, c in enumerate(claims):
-            verdict = verdicts.get(i) or verdicts_by_text.get(_norm_claim(c["text"]))
+        for batch_i, (orig_i, c) in enumerate(verifiable_claims):
+            verdict = verdicts.get(batch_i) or verdicts_by_text.get(_norm_claim(c["text"]))
             is_supported = bool(verdict.get("supported")) if verdict else False
             if is_supported:
                 supported += 1

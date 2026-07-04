@@ -18,7 +18,12 @@ def renderer_node(state: Dict[str, Any], config: Dict[str, Any] | None = None) -
 
     sources = state.get("sources", [])
     # Wire sources omit the bulky `content` field (kept in DB / used only by verifier).
-    wire_sources = [{k: v for k, v in s.items() if k != "content"} for s in sources]
+    # Also filter out Wikipedia sources — they must never appear in the final report.
+    wire_sources = [
+        {k: v for k, v in s.items() if k != "content"}
+        for s in sources
+        if "wikipedia.org" not in (s.get("url") or "").lower()
+    ]
 
     raw_report = {
         "run_id": run_id,
