@@ -48,6 +48,9 @@ class GraphState(TypedDict, total=False):
     revision_count: int
     needs_revision: bool
 
+    # --- quality assessment (written by quality_gate node) ---
+    quality_assessment: Dict[str, Any]
+
     # --- final artifacts ---
     raw_report: Dict[str, Any]
     final_report: Dict[str, Any]

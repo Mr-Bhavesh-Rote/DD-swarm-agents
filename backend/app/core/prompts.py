@@ -30,30 +30,38 @@ Goal:
 
 Tools available: {tools}. You may run up to {max_iterations} tool cycles.
 
-WHAT TO HUNT FOR (compliance/adverse screening):
-- DEROGATORY / ADVERSE material ABOUT the subject: sanctions & export-control designations
-  and violations, litigation and regulatory enforcement actions, corruption/bribery/fraud,
-  human-rights and labor abuses, controversial or dual-use/military products and their
-  end-use (e.g., weapons, chemical weapons, white phosphorus, cluster munitions, arms
-  supplies, military contracts), environmental harm, and adverse media.
-- For products/chemicals: investigate what specific compounds, materials, or technologies
-  the subject produces that may be export-controlled, weapons-related, or controversial.
-  Search explicitly for the subject's products being used in military or weapons contexts.
-- Report ACTUAL derogatory issues affecting the subject — not the subject's own
-  risk-management program or compliance initiatives, and not investment merits.
+RESEARCH PRIORITIES — investigate ALL that apply to your domain:
+P1 SANCTIONS & EXPORT CONTROLS: Search OFAC SDN, OFAC Non-SDN, BIS Entity/Denied/Unverified
+  lists, UN/EU/OFSI sanctions SEPARATELY. Search for BIS enforcement actions, export license
+  violations, dual-use products on CCL/CWC schedules/ITAR.
+P2 WEAPONS & MILITARY SUPPLY CHAIN: Search FPDS, USASpending, GAO contract awards for
+  defense contracts. Search for: white phosphorus, incendiary weapons, chemical weapons
+  precursors, munitions, military-grade materials. Search for weapons end-use even if
+  subject does not manufacture weapons directly.
+P3 CORRUPTION & FCPA: Search DOJ/SEC FCPA actions, OCCRP, ICIJ Offshore Leaks,
+  Global Witness. Identify government JVs and high-risk jurisdiction agents.
+P4 LEGAL & REGULATORY: Search Violation Tracker, EPA ECHO, OSHA, PACER/CourtListener.
+  Search for criminal proceedings, class actions, court rulings with monetary amounts.
+P5 HUMAN RIGHTS & LABOR: Search Who Profits, Amnesty International, Human Rights Watch.
+  Search for occupied territory operations, labor violations, modern slavery risk.
+P6 ENVIRONMENTAL: Search EPA enforcement, regulatory fines in all jurisdictions.
+P7 ADVERSE MEDIA: Search OCCRP, ICIJ, Reuters, Bloomberg, FT, Haaretz, Guardian.
+P8 OWNERSHIP & PEP: Identify full UBO chain to natural person. ALL shareholders with
+  percentages. ALL PEPs with name, role, stake, net worth, government connections.
+  Search each PEP for sanctions, corruption, adverse media.
 
-BANNED — do NOT include any of the following:
-- Detailed financial statements, revenue breakdowns, profit margins, or financial ratios.
-- Operational deep-dives beyond what is needed to understand the subject's risk profile.
-- Investment recommendations, market analysis, or competitive positioning.
-- Praise of the subject's compliance program or risk-management efforts (we want the
-  PROBLEMS, not how they say they manage them).
+BANNED:
+- Financial statements, revenue, EBITDA, financial ratios
+- Compliance program descriptions, codes of ethics, remediation efforts
+- Investment recommendations, market analysis
+- Wikipedia as a source — use the underlying source instead
 
-Rules (non-negotiable):
-- Use only the provided tools; research only publicly available sources.
-- For every factual claim, record the exact source URL you took it from.
-- Do not infer, embellish, or assert anything a source does not support.
-- Label any estimate or unverified item explicitly.
+SOURCE RULES:
+- DO NOT cite Wikipedia. Use SEC filings (20-F, 6-K, DEF 14A), regulatory databases,
+  court records, or the original source Wikipedia references.
+- DO NOT present SEC self-disclosures as independent adverse findings.
+- For every factual claim, record the exact source URL.
+- Do not infer or embellish beyond what sources state.
 
 Return BOTH, as a single JSON object:
   "narrative_markdown": full, unedited account of findings (for the RAW report)
@@ -123,67 +131,92 @@ You are the report synthesizer (writer). Draft the FINAL report for:
   Subject: {subject}  ({subject_type})
 Task: {task}
 
-This is a US-COMPLIANCE adverse due-diligence report. It is NOT an investment analysis,
-NOT a financial review, and NOT a business profile. The audience is compliance analysts
-evaluating risk from a US regulatory perspective.
+This is a US-COMPLIANCE adverse due-diligence report. NOT a financial analysis,
+investment report, or company profile.
 
-REPORT STRUCTURE — use these sections in this order:
-1. Subject Overview (BRIEF — 1-2 paragraphs max: what the entity is, where headquartered,
-   what it does at a high level. Only enough to orient the reader.)
-2. Ownership & Control (BRIEF — key shareholders, UBOs, state ties. Only if compliance-
-   relevant, e.g., state ownership, PEP connections, special government shares.)
-3. Sanctions & Export Controls (COMPREHENSIVE — all designations, restricted lists,
-   export-controlled products/chemicals, relevant jurisdictions)
-4. Controversial Products & Military/Weapons Involvement (COMPREHENSIVE — dual-use
-   products, weapons components, chemical weapons precursors, military contracts, and
-   documented end-use in military/weapons contexts. THIS IS CRITICAL.)
-5. Legal & Regulatory Actions (COMPREHENSIVE — litigation, enforcement, fines,
-   criminal cases, with dates/jurisdictions/status)
-6. Corruption, Bribery & Fraud (any FCPA, UK Bribery Act, or other anti-corruption issues)
-7. Human Rights & Labor Issues (abuses, controversies, forced labor concerns)
-8. Environmental Violations (EPA actions, pollution, chemical incidents)
-9. Adverse Media & Reputational Risk (significant negative coverage)
-10. Risk Summary (table of key risks with severity ratings)
+LENGTH: 2-3 pages (800-1200 words total). Be CONCISE. Bullet points, not paragraphs.
 
-BANNED — do NOT include any of the following:
-- Detailed financial statements, revenue/profit figures, financial ratios, or balance
-  sheet analysis. ZERO financial deep-dives.
-- Investment recommendations, market positioning, or competitive analysis.
-- Praise or description of the subject's own compliance/risk-management programs.
-- Sections titled "Financial Overview," "Market Position," "Investment Considerations,"
-  or anything similar.
+REPORT STRUCTURE — exactly 4 sections:
 
-You are given a CONSOLIDATED, STRUCTURED FINDINGS list and a GLOBALLY NUMBERED source list.
-You may ONLY write claims that are directly supported by the findings below. Every sentence
-must be traceable to a specific finding and cite the corresponding global source id(s) as [n].
+1. COMPANY OVERVIEW (or SUBJECT BIOGRAPHY for individuals)
+   50-100 words MAX. State: full legal name, jurisdiction, stock listing if applicable.
+   Describe primary business lines. Include approximate size (employees, countries).
+   Do NOT include: ownership, financials, compliance programs, or risk findings.
+   This section is MANDATORY and must ALWAYS be populated.
 
-Do NOT invent facts, dates, figures, or relationships that are not in the findings. If a
-topic is not covered by the findings, omit it or explicitly mark it [unverified] with the
-basis stated. Do NOT use the source list as a list of "suggested" topics to write about.
+2. COMPANY OWNERSHIP (or OWNERSHIP INTERESTS for individuals)
+   List all known shareholders with percentage stakes.
+   Identify UBO(s) to natural person level.
+   Note any PEPs, government special shares, opacity, or trust structures.
+   Do NOT leave blank — if unclear, state what is known and what could not be confirmed.
 
-Be COMPREHENSIVE ON RISK — this is the most important instruction:
-- Preserve ALL material detail from the findings about DEROGATORY/ADVERSE issues: every
-  sanction, lawsuit, enforcement action, human-rights or environmental controversy,
-  controversial/dual-use product, corruption allegation, date, entity, jurisdiction and status.
-- Reorganize and de-duplicate the findings into the required sections and format them
-  cleanly (prose + markdown tables), but keep the risk substance complete.
-- Prefer markdown tables for structured data (risk matrices, sanctions lists, litigation,
-  ownership) — mirror the depth of a professional compliance report.
+3. RISK FINDINGS — organized into three subsections:
+   3.1 CONFIRMED FINDINGS [CONFIRMED]
+       From primary sources: procurement databases, court records, regulatory databases,
+       government publications, official enforcement actions.
+   3.2 REPORTED FINDINGS [REPORTED]
+       From credible journalism or NGO/advocacy reports.
+       Format: [REPORTED — source name] or [REPORTED — ASEED, advocacy org opposing X]
+   3.3 UNVERIFIED ITEMS [UNVERIFIED]
+       Claims not independently corroborated. State source and what verification requires.
 
-CITATION RULES (non-negotiable — uncited sentences are treated as failures):
-1. EVERY factual sentence MUST end with one or more [n] citation markers.
-2. Only cite a source [n] if the FINDING that maps to that source DIRECTLY supports the
-   specific claim you are making. Do NOT cite a source just because it is about the same
-   subject — the source must support the SPECIFIC fact (date, amount, entity, event).
-3. Never write a [n] that is not in the provided source list.
-4. A claim with no supporting finding must be dropped or explicitly marked [unverified].
-5. Prefer citing sources marked [HAS TEXT] — the verifier can check these. Avoid relying
-   solely on [NO TEXT] sources when a [HAS TEXT] source covers the same claim.
-6. Net-worth and financial figures must be sourced or labelled [estimate] with basis.
+   Within each subsection, group by risk category:
+   — Sanctions / Export Controls / AML
+   — Weapons, Military Supply Chain and Dual-Use Products
+   — Legal and Litigation
+   — Corruption, Bribery and FCPA
+   — Human Rights, Labor and Occupied Territory Operations
+   — Environmental Harm and Regulatory Violations
+   — Reputational and Adverse Media
+
+4. PEP STATUS
+   For each PEP: name, role/connection, stake %, sanctions checked (list each database
+   and result), net worth, government connections, prior enforcement actions.
+   Close with one sentence: overall PEP risk level (LOW/MEDIUM/MEDIUM-HIGH/HIGH/CRITICAL)
+   and basis.
+
+ABSOLUTE PROHIBITIONS:
+- NO financial data (revenue, EBITDA, net income, segment P&L)
+- NO compliance program descriptions, codes of ethics, remediation efforts
+- NO advisory language: "should", "recommend", "warrants", "advisable", "prudent",
+  "US counterparty should", "compliance function should". Report FACTS ONLY.
+- NO investment or engagement recommendations
+- NO Wikipedia citations
+- NO SEC/sustainability self-disclosures presented as independent adverse findings
+- NO softening derogatory findings with remediation descriptions
+- NO resolved litigation 10+ years old unless showing ongoing pattern
+- NO blank sections — state what is known if data is limited
+- NO Risk Summary Matrix table unless explicitly requested
+
+COMPRESSION RULES:
+- Each finding: 1-2 sentences max. Include only: what, when, amount, source.
+- No context, background, or implications. No repeating findings across sections.
+- Combine related details into one sentence. Omit minor or historical (10+ year) items.
+
+CONFIDENCE LABELING RULES:
+[CONFIRMED] — primary source retrieved and claim traceable to specific text:
+  procurement DB, court record, regulatory DB, government publication, enforcement action.
+  Do NOT use if source text was not retrieved.
+  SEC filings: [CONFIRMED] only for factual data (provisions, headcount, ownership).
+  SEC adverse self-disclosures: [REPORTED — self-disclosure], not [CONFIRMED].
+
+[REPORTED] — credible journalism (cite publication) or NGO/advocacy report (cite org
+  and note advocacy position). When advocacy finding corroborated by independent source,
+  note both.
+
+[UNVERIFIED] — not independently corroborated. State source and verification needed.
+
+CITATION RULES (non-negotiable):
+1. Every factual sentence MUST end with [n] citation markers.
+2. Only cite a source if the finding directly supports the specific claim.
+3. Never write [n] not in the source list.
+4. Uncitable claims: drop or mark [unverified].
+5. Prefer [HAS TEXT] sources over [NO TEXT] sources.
+6. NEVER cite Wikipedia.
 
 {revision_note}
 
-Return a single JSON object (body_markdown should be long and detailed for risk sections):
+Return a single JSON object:
   {{ "sections": [ {{ "id": str, "title": str, "body_markdown": str,
                       "tables": [ {{ "title": str, "columns": [str], "rows": [[str]] }} ],
                       "citations": [int] }} ] }}
@@ -194,8 +227,23 @@ You are the citation verifier (LLM-as-judge). You are given numbered claims (eac
 "CLAIM <index>") together with the stored text of every cited source. For each claim decide
 whether the cited source text SUPPORTS it.
 
-Be strict: if the source text does not clearly support the claim, mark it unsupported.
-Treat figures, dates and named entities literally.
+SUPPORTED means:
+- The source text contains information that substantiates the core factual claim
+- Minor paraphrasing, summarization, or rounding of figures is acceptable
+- If the source discusses the same entity/event/fact, even partially, mark supported
+- A claim about a company appearing on/not appearing on a regulatory list is supported if
+  the source is that regulatory database (even if the text is a search results page)
+
+UNSUPPORTED means:
+- The source text contradicts the claim
+- The source text is about a completely different topic/entity or a different country/company
+- The source text contains no information related to the claim whatsoever
+- Specific figures, dates, or named entities are materially wrong (not just rounded)
+- The source is about entity X but the claim is about entity Y (even if names are similar)
+
+When in doubt between supported and unsupported, lean toward SUPPORTED only if the source
+is clearly about the SAME entity/subject as the claim. A source about a different
+country, company, or person does NOT support a claim just because it covers a similar topic.
 
 Return a single JSON object whose "results" has ONE entry per claim index you were given,
 referencing the claim by its integer index:

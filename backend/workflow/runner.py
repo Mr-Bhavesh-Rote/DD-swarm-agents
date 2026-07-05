@@ -36,6 +36,7 @@ _NODE_STATUS = {
     "aggregator": "synthesizing",
     "synthesizer": "synthesizing",
     "verifier": "verifying",
+    "quality_gate": "verifying",
     "renderer": "verifying",
 }
 
@@ -188,12 +189,18 @@ def execute_run(run_id: str) -> None:
                 # Persist whatever was produced — even on failure/cancel — so completed research,
                 # sources and findings are never lost (child tables populate from the reducer channels).
                 terminal = "cancelled" if cancelled else ("failed" if error else "done")
-                # Compliance quality gate: a report with very low source-grounding must not be
-                # auto-published as "done".
+                # Compliance quality gate: use the quality assessment to determine if the
+                # report should be auto-published or flagged for manual review.
                 if terminal == "done":
-                    faith = float(final_state.get("final_report", {}).get("verification", {}).get("faithfulness_score", 1.0))
-                    if faith < get_settings().revision_min_faithfulness:
+                    qa = final_state.get("quality_assessment", {})
+                    qa_status = qa.get("quality_gates", {}).get("status", "")
+                    if qa_status == "fail":
                         terminal = "needs_review"
+                    elif not qa_status:
+                        # Fallback if quality gate didn't run: use faithfulness.
+                        faith = float(final_state.get("final_report", {}).get("verification", {}).get("faithfulness_score", 1.0))
+                        if faith < get_settings().revision_min_faithfulness:
+                            terminal = "needs_review"
                 # Defensive fallback: if the stream's final_state does not contain the rendered
                 # reports (observed when the run ends abruptly or after a resume), read the latest
                 # checkpoint state and merge the missing channels.
@@ -211,6 +218,8 @@ def execute_run(run_id: str) -> None:
                             final_state.setdefault("aggregated_findings", cv["aggregated_findings"])
                         if cv.get("raw_outputs"):
                             final_state.setdefault("raw_outputs", cv["raw_outputs"])
+                        if cv.get("quality_assessment"):
+                            final_state.setdefault("quality_assessment", cv["quality_assessment"])
                     except Exception:
                         pass
                 _persist_outputs(run_id, final_state, status=terminal, error=error)
@@ -238,9 +247,16 @@ def execute_run(run_id: str) -> None:
                 _set_trace_link(run_id, final_url)
 
     if terminal == "done":
-        push_eval_scores(run_id, final_state.get("final_report", {}).get("verification", {}))
+        push_eval_scores(
+            run_id,
+            final_state.get("final_report", {}).get("verification", {}),
+            quality_assessment=final_state.get("quality_assessment"),
+        )
+    qa = final_state.get("quality_assessment", {}).get("quality_gates", {})
     publish_event(run_id, {"node": "run", "status": terminal, "run_id": run_id, "error": error,
-                           "verification": final_state.get("final_report", {}).get("verification", {})})
+                           "verification": final_state.get("final_report", {}).get("verification", {}),
+                           "quality_score": qa.get("quality_score"),
+                           "quality_status": qa.get("status")})
 
 
 # --------------------------------------------------------------------------------------

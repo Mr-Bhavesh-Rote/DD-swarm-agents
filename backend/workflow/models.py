@@ -39,9 +39,9 @@ def resolve_model(
     role_overrides = cfg.get("role_overrides") or {}
 
     candidates = [
-        agent_model,                      # per-agent override
-        role_overrides.get(role),         # per-role default
-        cfg.get("global_default"),        # run-level global default
+        role_overrides.get(role),         # user per-role override (UI selection)
+        cfg.get("global_default"),        # user run-level global default (UI selection)
+        agent_model,                      # per-agent override (YAML/plan)
     ]
     for c in candidates:
         if c:

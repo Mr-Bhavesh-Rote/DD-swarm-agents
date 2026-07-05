@@ -241,8 +241,9 @@ def flush_langfuse() -> None:
         pass
 
 
-def push_eval_scores(run_id: str, verification: Dict[str, Any]) -> None:
-    """Push citation coverage + faithfulness as Langfuse eval scores (§4.2)."""
+def push_eval_scores(run_id: str, verification: Dict[str, Any],
+                     quality_assessment: Optional[Dict[str, Any]] = None) -> None:
+    """Push citation coverage, faithfulness, and quality score as Langfuse eval scores."""
     settings = get_settings()
     if not settings.langfuse_enabled or not verification:
         return
@@ -250,7 +251,6 @@ def push_eval_scores(run_id: str, verification: Dict[str, Any]) -> None:
     if not client:
         return
     try:
-        # Attach to BOTH the trace (so scores show on the run's trace view) and the session.
         trace_id = client.create_trace_id(seed=run_id)
         client.create_score(
             name="citation_coverage",
@@ -266,6 +266,17 @@ def push_eval_scores(run_id: str, verification: Dict[str, Any]) -> None:
             session_id=run_id,
             data_type="NUMERIC",
         )
+        # Quality score from the 4-gate framework.
+        if quality_assessment:
+            qg = quality_assessment.get("quality_gates", {})
+            if qg:
+                client.create_score(
+                    name="quality_score",
+                    value=float(qg.get("quality_score", 0)) / 100.0,
+                    trace_id=trace_id,
+                    session_id=run_id,
+                    data_type="NUMERIC",
+                )
         client.flush()
     except Exception:
         pass

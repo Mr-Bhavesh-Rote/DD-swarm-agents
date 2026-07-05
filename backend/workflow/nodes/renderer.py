@@ -18,7 +18,12 @@ def renderer_node(state: Dict[str, Any], config: Dict[str, Any] | None = None) -
 
     sources = state.get("sources", [])
     # Wire sources omit the bulky `content` field (kept in DB / used only by verifier).
-    wire_sources = [{k: v for k, v in s.items() if k != "content"} for s in sources]
+    # Also filter out Wikipedia sources — they must never appear in the final report.
+    wire_sources = [
+        {k: v for k, v in s.items() if k != "content"}
+        for s in sources
+        if "wikipedia.org" not in (s.get("url") or "").lower()
+    ]
 
     raw_report = {
         "run_id": run_id,
@@ -30,15 +35,32 @@ def renderer_node(state: Dict[str, Any], config: Dict[str, Any] | None = None) -
     }
 
     sections = state.get("draft_sections", [])
-    # Recompute each section's citation list from its body markers for fidelity.
     import re
 
     cite_re = re.compile(r"\[(\d+)\]")
+    valid_source_ids = {s.get("id") for s in wire_sources}
+
+    # Strip orphaned citations: remove [n] markers from body where n doesn't exist
+    # in the source list (LLM hallucinated the citation ID).
+    def _strip_orphaned(body: str) -> str:
+        def _repl(m: re.Match) -> str:
+            cid = int(m.group(1))
+            return m.group(0) if cid in valid_source_ids else ""
+        return cite_re.sub(_repl, body or "")
+
+    all_cited_ids: set[int] = set()
     for sec in sections:
+        sec["body_markdown"] = _strip_orphaned(sec.get("body_markdown", "") or "")
         ids = sorted({int(x) for x in cite_re.findall(sec.get("body_markdown", "") or "")})
         sec["citations"] = ids
+        all_cited_ids.update(ids)
+
+    # Final report only includes sources actually cited in the body — uncited research
+    # sources bloat the references list and confuse reviewers.
+    final_sources = [s for s in wire_sources if s.get("id") in all_cited_ids]
 
     source_manifest = _build_source_manifest(state)
+    quality_assessment = state.get("quality_assessment", {})
     final_report = {
         "run_id": run_id,
         "subject": subject,
@@ -46,9 +68,10 @@ def renderer_node(state: Dict[str, Any], config: Dict[str, Any] | None = None) -
         "generated_at": now,
         "model_summary": state.get("model_summary", {}),
         "verification": state.get("verification", {"citation_coverage": 0.0, "faithfulness_score": 0.0, "flags": []}),
+        "quality_assessment": quality_assessment,
         "source_manifest": source_manifest,
         "sections": sections,
-        "sources": wire_sources,
+        "sources": final_sources,
     }
 
     return {
@@ -92,11 +115,6 @@ def render_markdown(report: Dict[str, Any], kind: str) -> str:
 
 def _final_markdown(report: Dict[str, Any]) -> str:
     lines: List[str] = [f"# Due-Diligence Report — {report['subject']}", ""]
-    v = report.get("verification", {})
-    lines.append(
-        f"*Citation coverage: {v.get('citation_coverage', 0):.0%} · "
-        f"Faithfulness: {v.get('faithfulness_score', 0):.0%}*\n"
-    )
     src_by_id = {s["id"]: s for s in report.get("sources", [])}
     for sec in report.get("sections", []):
         lines.append(f"## {sec['title']}")
@@ -105,6 +123,7 @@ def _final_markdown(report: Dict[str, Any]) -> str:
             lines.append("")
             lines.append(_md_table(t))
         lines.append("")
+
     lines.append("## Sources Queried")
     manifest = report.get("source_manifest", {})
     if manifest:
