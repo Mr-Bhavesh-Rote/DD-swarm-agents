@@ -236,12 +236,14 @@ SUPPORTED means:
 
 UNSUPPORTED means:
 - The source text contradicts the claim
-- The source text is about a completely different topic/entity
+- The source text is about a completely different topic/entity or a different country/company
 - The source text contains no information related to the claim whatsoever
 - Specific figures, dates, or named entities are materially wrong (not just rounded)
+- The source is about entity X but the claim is about entity Y (even if names are similar)
 
-When in doubt between supported and unsupported, lean toward SUPPORTED if the source is
-at least topically relevant to the claim.
+When in doubt between supported and unsupported, lean toward SUPPORTED only if the source
+is clearly about the SAME entity/subject as the claim. A source about a different
+country, company, or person does NOT support a claim just because it covers a similar topic.
 
 Return a single JSON object whose "results" has ONE entry per claim index you were given,
 referencing the claim by its integer index:
