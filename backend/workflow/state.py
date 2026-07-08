@@ -32,6 +32,9 @@ class GraphState(TypedDict, total=False):
     # --- planner output ---
     plan: Dict[str, Any]           # normalized WorkflowPlan dict
 
+    # --- entity context (written by entity_extractor after phase-1 overview research) ---
+    overview_context: str          # key entities/findings from overview agent, injected into adverse agents
+
     # --- parallel research swarm outputs (reducer-merged; append-only) ---
     raw_outputs: Annotated[List[Dict[str, Any]], operator.add]   # AgentOutput dicts
     findings: Annotated[List[Dict[str, Any]], operator.add]      # raw findings w/ source_urls

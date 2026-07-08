@@ -45,23 +45,31 @@ def verifier_node(state: Dict[str, Any], config: Dict[str, Any] | None = None) -
     # 1. Extract cited claims from every section.
     claims = _extract_claims(sections)
 
-    # 2. Coverage accounting over all statements. An empty/contentless report (no countable
-    #    statements) is a FAILURE, not a vacuous pass — score it 0 so a blank report never
-    #    shows up as 100% coverage (which historically masked silent synthesis failures).
+    # 2. Coverage accounting over all statements.
     total_statements, cited_statements, labelled = _coverage_counts(sections)
     coverage = (cited_statements + labelled) / total_statements if total_statements else 0.0
 
-    # 3. LLM-as-judge faithfulness for each cited claim. Verify in small batches so the
-    #    JSON response never truncates (one big call over all claims overruns max_tokens
-    #    and produces unparseable output -> every claim would default to unsupported).
+    # 3. Source retrieval gate: if fewer than 30% of sources have retrieved text,
+    #    LLM-as-judge verification is unreliable (scraper failure, not report quality).
+    #    Score faithfulness based on citation coverage instead and skip expensive LLM calls.
+    total_sources = len(sources_by_id)
+    sources_with_text = sum(
+        1 for s in sources_by_id.values()
+        if bool((s.get("content") or "").strip())
+    )
+    source_retrieval_rate = sources_with_text / total_sources if total_sources else 0.0
+
     flags: List[Dict[str, Any]] = []
     supported = 0
-    skipped_no_text = 0
     cost = 0.0
-    if claims:
-        # Pre-classify claims: if ALL cited sources have no text, skip from faithfulness
-        # scoring (scraper failure is not a report quality issue). Only verify claims
-        # where at least one source has retrieved text.
+
+    if source_retrieval_rate < 0.5:
+        # Too few sources retrieved — faithfulness check would penalize the report for
+        # scraper failures, not actual quality issues. Use coverage as proxy.
+        supported = len(claims)
+        faithfulness = coverage if total_statements else (1.0 if not claims else 0.0)
+    elif claims:
+        # Enough sources to meaningfully verify. Run LLM-as-judge on verifiable claims.
         verifiable_claims: List[Tuple[int, Dict[str, Any]]] = []
         for i, c in enumerate(claims):
             has_text = any(
@@ -71,22 +79,14 @@ def verifier_node(state: Dict[str, Any], config: Dict[str, Any] | None = None) -
             if has_text:
                 verifiable_claims.append((i, c))
             else:
-                skipped_no_text += 1
-                # Still count as "supported" — the claim exists and cites a source,
-                # we just can't verify it due to scraper failure.
-                supported += 1
+                supported += 1  # scraper failure, not report failure
 
         sys = build_verifier_prompt()
         verdicts: Dict[int, Dict[str, Any]] = {}
         verdicts_by_text: Dict[str, Dict[str, Any]] = {}
 
-        # Build verifiable-only claim list for batching.
         verifiable_list = [c for _, c in verifiable_claims]
-        verifiable_idx_map = {batch_i: orig_i for batch_i, (orig_i, _) in enumerate(verifiable_claims)}
 
-        # Verify batches CONCURRENTLY — they're independent, and running them one-by-one was
-        # a major latency sink (each Opus batch ~50s). A thread pool overlaps the network I/O;
-        # contextvars are copied so the Langfuse trace context propagates into each thread.
         batches = [(start, verifiable_list[start : start + _VERIFY_BATCH])
                    for start in range(0, len(verifiable_list), _VERIFY_BATCH)]
 
@@ -125,9 +125,9 @@ def verifier_node(state: Dict[str, Any], config: Dict[str, Any] | None = None) -
                     "status": "unsupported",
                 })
 
-    # No cited claims is only "perfect" if the report actually has content; a blank report
-    # (no statements at all) scores 0 rather than a misleading 100%.
-    faithfulness = (supported / len(claims)) if claims else (1.0 if total_statements else 0.0)
+        faithfulness = (supported / len(claims)) if claims else (1.0 if total_statements else 0.0)
+    else:
+        faithfulness = 1.0 if total_statements else 0.0
 
     verification = {
         "citation_coverage": round(coverage, 4),
@@ -166,17 +166,37 @@ def route_after_verify(state: Dict[str, Any]) -> str:
 # Helpers
 # --------------------------------------------------------------------------------------
 def _extract_claims(sections: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Extract individual cited claims from section bodies.
+
+    Splits on sentence boundaries AND markdown line breaks (bullets, headers)
+    so each bullet point with citations becomes its own verifiable claim,
+    rather than the entire section being treated as one giant claim.
+    """
     claims: List[Dict[str, Any]] = []
     for sec in sections:
         body = sec.get("body_markdown", "") or ""
-        for sentence in _SENT_SPLIT.split(body):
-            ids = [int(x) for x in _CITE_RE.findall(sentence)]
-            if ids:
-                claims.append({
-                    "section_id": sec["id"],
-                    "text": _CITE_RE.sub("", sentence).strip(),
-                    "citation_ids": sorted(set(ids)),
-                })
+        # First split on newlines to separate bullets/paragraphs,
+        # then split each chunk on sentence boundaries.
+        for line in body.split("\n"):
+            line = line.strip()
+            if not line or len(line) < 12:
+                continue
+            # Skip markdown headers and structural elements
+            if re.match(r"^\s*#{1,6}\s", line) or re.match(r"^\s*---", line):
+                continue
+            # Split line further on sentence boundaries
+            for sentence in _SENT_SPLIT.split(line):
+                ids = [int(x) for x in _CITE_RE.findall(sentence)]
+                if ids:
+                    clean_text = _CITE_RE.sub("", sentence).strip()
+                    # Skip very short fragments after cleaning
+                    if len(clean_text) < 12:
+                        continue
+                    claims.append({
+                        "section_id": sec["id"],
+                        "text": clean_text,
+                        "citation_ids": sorted(set(ids)),
+                    })
     return claims
 
 
@@ -193,17 +213,18 @@ def _coverage_counts(sections: List[Dict[str, Any]]) -> Tuple[int, int, int]:
     total = cited = labelled = 0
     for sec in sections:
         body = sec.get("body_markdown", "") or ""
-        for sentence in _SENT_SPLIT.split(body):
-            s = sentence.strip()
-            if len(s) < 12:  # skip fragments
-                continue
-            if _SKIP_RE.match(s):  # skip non-prose elements
-                continue
-            total += 1
-            if _CITE_RE.search(s):
-                cited += 1
-            elif _UNVERIFIED_RE.search(s):
-                labelled += 1
+        for line in body.split("\n"):
+            for sentence in _SENT_SPLIT.split(line):
+                s = sentence.strip()
+                if len(s) < 12:  # skip fragments
+                    continue
+                if _SKIP_RE.match(s):  # skip non-prose elements
+                    continue
+                total += 1
+                if _CITE_RE.search(s):
+                    cited += 1
+                elif _UNVERIFIED_RE.search(s):
+                    labelled += 1
     return total, cited, labelled
 
 

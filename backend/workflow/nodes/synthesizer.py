@@ -98,6 +98,8 @@ def synthesizer_node(state: Dict[str, Any], config: Dict[str, Any] | None = None
                 sections[i]["body_markdown"] = _fallback_company_overview(state)
             if sec["id"] == "company_ownership" and not (sec.get("body_markdown") or "").strip():
                 sections[i]["body_markdown"] = _fallback_company_ownership(state)
+            if sec["id"] == "pep_status" and not (sec.get("body_markdown") or "").strip():
+                sections[i]["body_markdown"] = _fallback_pep_status(state)
 
         # (0b) Inject prior must_include findings if the LLM omitted them.
         _inject_missing_prior_findings(sections, subject)
@@ -111,29 +113,68 @@ def synthesizer_node(state: Dict[str, Any], config: Dict[str, Any] | None = None
             f"({len(sections)} sections, all empty) — likely an LLM/JSON failure."
         )
 
+    # (A2) Fix missing citation numbers: the LLM sometimes writes "[REPORTED — The Guardian]"
+    # but forgets to add a [n] citation. Scan for these and inject the matching source ID.
+    sources_list = state.get("sources", [])
+    if sources_list:
+        for i, sec in enumerate(sections):
+            body = sec.get("body_markdown", "") or ""
+            if body.strip():
+                sections[i]["body_markdown"] = _inject_missing_citations(body, sources_list)
+
+    # (B0) Code-level hallucination filter: strip draft bullets that cannot be traced
+    # to any finding in the aggregated findings list. This is the ONLY reliable defence
+    # against recurring hallucinations (fatal accidents, wrong SEC cases, etc.) because
+    # prompt-level rules are consistently ignored by the LLM.
+    agg_findings = state.get("aggregated_findings", [])
+    if agg_findings:
+        for i, sec in enumerate(sections):
+            body = sec.get("body_markdown", "") or ""
+            if not body.strip():
+                continue
+            cleaned = _strip_hallucinated_bullets(body, agg_findings, state.get("raw_outputs", []))
+            if cleaned != body:
+                sections[i]["body_markdown"] = cleaned
+
     # (B) Pre-verify citation coverage: redraft any section below 60% coverage ONCE.
     # This catches the "52% uncited" problem before the verifier even runs, saving a
     # full verifier→revision round-trip for what is essentially a formatting issue.
     import re
     _cite_check = re.compile(r"\[(\d+)\]")
-    _sent_check = re.compile(r"(?<=[.!?])\s+(?=[A-Z0-9])")
+    _skip_re = re.compile(
+        r"^(\s*#{1,6}\s)|^(\s*---)|^(\s*\*\*[^*]+\*\*\s*$)"
+    )
+    _unverified_re = re.compile(r"\[(unverified|estimate)[^\]]*\]", re.IGNORECASE)
+
+    def _count_coverage(body: str) -> tuple[int, int]:
+        """Count (total_statements, cited_statements) using line-aware splitting."""
+        total = cited = 0
+        for line in body.split("\n"):
+            s = line.strip()
+            if len(s) < 12 or _skip_re.match(s):
+                continue
+            total += 1
+            if _cite_check.search(s) or _unverified_re.search(s):
+                cited += 1
+        return total, cited
+
     for i, sec in enumerate(sections):
         body = sec.get("body_markdown", "") or ""
-        sentences = [s.strip() for s in _sent_check.split(body) if len(s.strip()) >= 12]
-        if not sentences:
+        total, cited = _count_coverage(body)
+        if not total:
             continue
-        cited_count = sum(1 for s in sentences if _cite_check.search(s))
-        coverage = cited_count / len(sentences)
-        if coverage < 0.6:
-            # Redraft this section with explicit citation-gap feedback.
+        coverage = cited / total
+        if coverage < 0.8:
             sid, title = sec["id"], sec["title"]
-            uncited_examples = [s[:100] for s in sentences if not _cite_check.search(s)][:5]
+            uncited = [l.strip()[:100] for l in body.split("\n")
+                       if len(l.strip()) >= 12 and not _cite_check.search(l)
+                       and not _skip_re.match(l.strip()) and not _unverified_re.search(l)][:5]
             gap_feedback = (
                 f"CITATION GAP: This section has only {coverage:.0%} citation coverage "
-                f"({cited_count}/{len(sentences)} sentences cited). "
-                f"Examples of UNCITED sentences that MUST be fixed:\n"
-                + "\n".join(f"- \"{ex}...\"" for ex in uncited_examples)
-                + "\n\nRewrite the section so that EVERY factual sentence ends with [n] citations. "
+                f"({cited}/{total} statements cited). "
+                f"Examples of UNCITED statements that MUST be fixed:\n"
+                + "\n".join(f"- \"{ex}...\"" for ex in uncited)
+                + "\n\nRewrite the section so that EVERY factual line ends with [n] citations. "
                 "Drop any claim you cannot cite."
             )
             redraft, redraft_cost = _draft_one_section(
@@ -142,13 +183,10 @@ def synthesizer_node(state: Dict[str, Any], config: Dict[str, Any] | None = None
                                 "citation_ids": [], "reason": gap_feedback}],
                 callbacks=callbacks,
             )
-            # Only accept the redraft if it actually improved coverage.
             redraft_body = redraft.get("body_markdown", "") or ""
-            redraft_sents = [s.strip() for s in _sent_check.split(redraft_body) if len(s.strip()) >= 12]
-            if redraft_sents:
-                redraft_cited = sum(1 for s in redraft_sents if _cite_check.search(s))
-                if redraft_cited / len(redraft_sents) > coverage:
-                    sections[i] = redraft
+            r_total, r_cited = _count_coverage(redraft_body)
+            if r_total and (r_cited / r_total) > coverage:
+                sections[i] = redraft
             total_cost += redraft_cost
 
     return {
@@ -230,8 +268,9 @@ def _company_section_note(sid: str) -> str:
         "[n] citation markers from the global source list. Sentences without citations WILL "
         "BE FLAGGED as failures. If you cannot cite a claim, either drop it or mark it "
         "[unverified]. Prefer citing sources marked [HAS TEXT] over [NO TEXT]. "
-        "Only cite a source if the FINDING it maps to actually supports the specific claim — "
-        "do NOT cite loosely related sources."
+        "Only cite a source if it DIRECTLY supports the specific claim — "
+        "do NOT cite loosely related sources. NEVER reuse the same citation for unrelated claims. "
+        "Check each source's title/URL before citing to confirm it matches your claim's topic."
         "\n\nNO RECOMMENDATIONS (mandatory): NEVER write sentences containing 'should', "
         "'recommend', 'warrants', 'advisable', 'prudent', 'suggest that', 'ought to', "
         "'US counterparty should', 'compliance function should'. "
@@ -264,14 +303,22 @@ def _company_section_note(sid: str) -> str:
             " Organize ALL risk findings into THREE subsections with these EXACT headers:\n\n"
             "### CONFIRMED RISKS [CONFIRMED]\n"
             "Facts verified from government databases, court records, regulatory databases, "
-            "or official government publications WHERE source text was retrieved.\n\n"
+            "or official government publications. This section MUST include:\n"
+            "- Sanctions screening CLEAN results (OFAC SDN, OFAC Non-SDN, BIS Entity List, "
+            "UN, EU checked — subject not found). Cite the database source [n] from the source list.\n"
+            "- Any government enforcement actions, court rulings, or regulatory findings.\n"
+            "This section must NOT be empty — at minimum, sanctions screening results go here.\n\n"
             "### REPORTED ALLEGATIONS [REPORTED]\n"
             "Claims from credible journalists, NGOs (HRW, Amnesty), or advocacy organizations. "
             "Also: SEC filing self-disclosures of adverse risk factors. "
             "Format: '[REPORTED — source name]' e.g. '[REPORTED — Human Rights Watch]'\n\n"
             "### UNVERIFIED ITEMS [UNVERIFIED]\n"
-            "Claims where source text was NOT retrieved, or single-source claims lacking "
-            "corroboration. For each, note WHY it is unverified.\n\n"
+            "ONLY include items here if they are MATERIAL adverse findings where the source "
+            "could not be verified. Do NOT include:\n"
+            "- Negative search results ('no entries found', 'not on list') — those are CONFIRMED negatives\n"
+            "- Items where you simply couldn't retrieve the source — OMIT these entirely\n"
+            "- 'No evidence found' statements — omit, do not publish absence of evidence\n"
+            "Only include substantive claims from a named source that could not be independently verified.\n\n"
             "PRIORITY ORDERING within each subsection:\n"
             "1. Weapons, Military Supply Chain & Dual-Use Products (white phosphorus, military "
             "   contracts, arms supply chains) — this is the HIGHEST PRIORITY risk category\n"
@@ -287,15 +334,29 @@ def _company_section_note(sid: str) -> str:
             "- Government/regulatory source with retrieved text → [CONFIRMED]\n"
             "- Source text not retrieved → [UNVERIFIED]\n"
             "- Sanctions screening NEGATIVE results (subject NOT found on OFAC/BIS/UN/EU lists) "
-            "→ [CONFIRMED] — these are verified negative results from government databases\n\n"
-            "CITATION ACCURACY RULES:\n"
+            "→ [CONFIRMED] — cite the actual database URLs (sanctionssearch.ofac.treas.gov, "
+            "bis.gov, un.org, etc.) from the source list, NOT news articles about sanctions. "
+            "List ALL databases checked in one consolidated bullet.\n\n"
+            "ANTI-HALLUCINATION CHECK (CRITICAL):\n"
+            "- Before writing ANY bullet about a fatality, death, accident, explosion, or spill, "
+            "search the findings list for that EXACT event. If it is not there, DO NOT WRITE IT.\n"
+            "- Before writing ANY dollar figure, find the EXACT figure in the findings list and "
+            "copy it verbatim. Do not round or approximate.\n\n"
+            "CITATION ACCURACY RULES (CRITICAL — violations tank faithfulness scores):\n"
+            "- Each citation [n] MUST directly support the SPECIFIC claim it is attached to. "
+            "Read the source title and URL before citing — if the source is about a DIFFERENT "
+            "topic, event, or entity than your claim, DO NOT cite it.\n"
+            "- NEVER reuse a citation [n] across unrelated claims. An article about environmental "
+            "fines does NOT support a claim about native title, greenwashing, or SEC proceedings.\n"
             "- For sanctions screening results, ONLY cite the actual sanctions database source "
-            "(sanctionssearch.ofac.treas.gov, etc.) — do NOT cite news articles about sanctions "
-            "enforcement actions against OTHER entities as a source for screening results.\n"
-            "- ONLY cite a source [n] if the source is specifically about the SAME entity as the claim. "
-            "A source about Russia sanctions is NOT a valid citation for a Kazakhstan company's "
-            "OFAC screening result.\n"
-            "- If no matching source exists in the source list, do NOT cite — mark as [unverified].\n\n"
+            "(sanctionssearch.ofac.treas.gov, etc.) — do NOT cite news articles about sanctions.\n"
+            "- For regulatory enforcement (Good Jobs First, ASIC, SEC), cite the ACTUAL regulatory "
+            "source, not an unrelated news article. Do NOT conflate Australian ASIC proceedings "
+            "with US SEC enforcement or Good Jobs First records.\n"
+            "- If no matching source exists in the source list for a claim, mark the claim as "
+            "[unverified] rather than attaching a wrong citation.\n"
+            "- BEFORE writing each bullet, CHECK that your citation [n] matches: scan the source "
+            "list for [n], read its title/URL, confirm it is about the SAME event as your claim.\n\n"
             "CATEGORIZATION RULES:\n"
             "- Criminal investigations (Green Police, police, prosecution) → Legal & Litigation, "
             "NOT Weapons/Military\n"
@@ -336,7 +397,14 @@ def _build_shared_context(state: Dict[str, Any]) -> str:
 
     findings = state.get("aggregated_findings", [])
     sources = state.get("sources", [])
-    lines: List[str] = []
+    lines: List[str] = [
+        "⚠️ CITATION FORMAT: Use ONLY [n] format (e.g. [1], [2], [34]) to cite sources. "
+        "The [n] numbers correspond to the GLOBAL SOURCE LIST at the bottom. "
+        "Each finding below ends with 'CITE AS: [n]' — copy those exact numbers into your report. "
+        "Do NOT use [F:n] or any other format. Do NOT invent citation numbers.\n"
+        "\n⚠️ FAITHFULNESS: ONLY write claims that appear in the findings below. "
+        "Do NOT add your own knowledge.\n"
+    ]
 
     # 1. Findings segmented by verification status for the writer.
     sorted_findings = sorted(findings, key=_finding_priority, reverse=True)
@@ -401,9 +469,12 @@ def _build_shared_context(state: Dict[str, Any]) -> str:
             conf_label = conf.get("level", f.get("confidence", "medium")) if conf else f.get("confidence", "medium")
             cd = f.get("circular_dep", {})
             cd_tag = " [CIRCULAR DEP]" if cd.get("has_circular_dep") else ""
+            # Format source IDs as cite-ready [n] markers so the LLM copies them directly.
+            src_ids = f.get('source_ids') or []
+            cite_markers = " ".join(f"[{sid}]" for sid in src_ids) if src_ids else "[no source]"
             lines.append(
-                f"[F:{idx}] [{tag}] ({cat}, confidence={conf_label}{cd_tag}) "
-                f"{f['claim']}  -> {f.get('source_ids')}"
+                f"- [{tag}] ({cat}, confidence={conf_label}{cd_tag}) "
+                f"{f['claim']} — CITE AS: {cite_markers}"
             )
             idx += 1
         lines.append("")
@@ -543,6 +614,85 @@ def _fallback_company_ownership(state: Dict[str, Any]) -> str:
     return "Ownership data not available from retrieved sources."
 
 
+def _fallback_pep_status(state: Dict[str, Any]) -> str:
+    """Build a structured PEP section from findings when the writer returns blank.
+
+    Scans ALL findings for person names with government/political/board connections
+    and formats them with PEP level ratings and sanctions status.
+    """
+    findings = state.get("aggregated_findings", [])
+
+    # Broad keyword scan — catch PEP, board, ownership, political connections.
+    _PEP_KW = ("pep", "politically exposed", "government", "minister", "politician",
+                "state-owned", "sovereign", "chairman", "board member", "director",
+                "non-executive", "executive", "founder", "ceo", "managing director",
+                "billionaire", "net worth", "golden share", "special share",
+                "shareholder", "beneficial owner", "stake", "ownership")
+    _PEP_CAT_KW = ("pep", "ownership", "political", "state", "governance")
+
+    pep_findings = []
+    for f in findings:
+        claim = f.get("claim", "").lower()
+        cat = (f.get("category") or "").lower()
+        if any(kw in claim for kw in _PEP_KW) or any(kw in cat for kw in _PEP_CAT_KW):
+            pep_findings.append(f)
+
+    if not pep_findings:
+        return "No PEP-related findings identified from retrieved sources.\n\nOVERALL PEP RISK: LOW — no politically exposed persons identified."
+
+    lines: List[str] = []
+
+    # Separate ownership/shareholder findings from person-level PEP findings.
+    person_findings = []
+    ownership_findings = []
+    for f in pep_findings:
+        claim_lower = f.get("claim", "").lower()
+        if any(kw in claim_lower for kw in ("shareholder", "ownership", "stake", "beneficial owner", "%")):
+            ownership_findings.append(f)
+        else:
+            person_findings.append(f)
+
+    # Emit person-level PEP entries with structured format.
+    if person_findings:
+        for f in person_findings[:10]:
+            sids = f.get("source_ids", [])
+            cite = " " + " ".join(f"[{sid}]" for sid in sids) if sids else ""
+            lines.append(f"- {f['claim']}{cite}")
+
+    # Emit ownership context.
+    if ownership_findings:
+        if person_findings:
+            lines.append("")
+        lines.append("**Key Shareholders:**")
+        for f in ownership_findings[:6]:
+            sids = f.get("source_ids", [])
+            cite = " " + " ".join(f"[{sid}]" for sid in sids) if sids else ""
+            lines.append(f"- {f['claim']}{cite}")
+
+    # Determine PEP risk level heuristically from findings content.
+    all_text = " ".join(f.get("claim", "").lower() for f in pep_findings)
+    if any(kw in all_text for kw in ("billionaire", "golden share", "special share",
+                                      "president", "prime minister", "head of state",
+                                      "sanctioned", "trump")):
+        risk_level = "HIGH"
+        rationale = "billionaire UBO, government connections, or head-of-state ties identified"
+    elif any(kw in all_text for kw in ("minister", "politician", "government official",
+                                        "state-owned", "sovereign")):
+        risk_level = "MEDIUM-HIGH"
+        rationale = "government or political connections identified among key persons"
+    elif any(kw in all_text for kw in ("board member", "director", "non-executive",
+                                        "chairman")):
+        risk_level = "MEDIUM"
+        rationale = "board-level connections identified requiring PEP assessment"
+    else:
+        risk_level = "MEDIUM"
+        rationale = "ownership figures identified with potential PEP exposure"
+
+    lines.append(f"\nOVERALL PEP RISK: {risk_level} — {rationale}.")
+
+    return "\n".join(lines)
+
+
 def _load_prior_findings(subject: str) -> List[Dict[str, Any]]:
     """Load prior manual DD findings from config/prior_findings/ YAML files.
 
@@ -627,3 +777,151 @@ def _inject_missing_prior_findings(sections: List[Dict[str, Any]], subject: str)
                     sec["body_markdown"] = (sec.get("body_markdown") or "") + bullet
         except Exception:
             continue
+
+
+def _inject_missing_citations(body: str, sources: List[Dict[str, Any]]) -> str:
+    """Fix lines that have [REPORTED — source] or [CONFIRMED] tags but no [n] citation.
+
+    Scans each bullet for lines missing a numeric citation and tries to match a source
+    from the source list by name/publication in the tag or line text.
+    """
+    import re
+
+    _has_cite = re.compile(r"\[\d+\]")
+    _source_tag = re.compile(r"\[(?:REPORTED|CONFIRMED|UNVERIFIED)\s*(?:—\s*([^\]]+))?\]", re.IGNORECASE)
+
+    # Build lookup: lowercase publication/domain → source id.
+    pub_to_ids: Dict[str, List[int]] = {}
+    for s in sources:
+        title = (s.get("title") or "").lower()
+        url = (s.get("url") or "").lower()
+        # Extract domain name.
+        domain_parts = url.replace("https://", "").replace("http://", "").split("/")[0].split(".")
+        for part in domain_parts:
+            if len(part) > 3 and part not in ("www", "com", "org", "gov", "net", "edu"):
+                pub_to_ids.setdefault(part, []).append(s["id"])
+        # Extract key words from title.
+        for word in re.findall(r"[a-z]{4,}", title):
+            if word not in ("article", "news", "report", "about", "with", "from", "that", "this"):
+                pub_to_ids.setdefault(word, []).append(s["id"])
+
+    lines = body.split("\n")
+    result: List[str] = []
+
+    for line in lines:
+        stripped = line.strip()
+        # Only process bullet lines that are missing citations.
+        if stripped.startswith(("-", "*")) and len(stripped) > 20 and not _has_cite.search(stripped):
+            # Try to find a source match from the tag or line text.
+            tag_match = _source_tag.search(stripped)
+            search_text = stripped.lower()
+            if tag_match and tag_match.group(1):
+                search_text = tag_match.group(1).lower() + " " + search_text
+
+            # Score each source by keyword overlap.
+            best_id = None
+            best_score = 0
+            seen_ids: set = set()
+            for word in re.findall(r"[a-z]{4,}", search_text):
+                for sid in pub_to_ids.get(word, []):
+                    if sid not in seen_ids:
+                        seen_ids.add(sid)
+            # For each candidate source, count how many of its title words appear in the line.
+            for s in sources:
+                if s["id"] not in seen_ids:
+                    continue
+                s_title = (s.get("title") or "").lower()
+                s_words = set(re.findall(r"[a-z]{4,}", s_title))
+                line_words = set(re.findall(r"[a-z]{4,}", search_text))
+                overlap = len(s_words & line_words)
+                if overlap > best_score:
+                    best_score = overlap
+                    best_id = s["id"]
+
+            if best_id and best_score >= 2:
+                # Append citation at end of line.
+                line = line.rstrip() + f" [{best_id}]"
+
+        result.append(line)
+
+    return "\n".join(result)
+
+
+def _strip_hallucinated_bullets(
+    body: str,
+    findings: List[Dict[str, Any]],
+    raw_outputs: List[Dict[str, Any]],
+) -> str:
+    """Remove bullet points from the draft that cannot be traced to any finding or narrative.
+
+    The LLM consistently hallucinates events (fatal accidents, wrong court cases) despite
+    prompt instructions. This code-level filter is the only reliable defence.
+    """
+    import re
+
+    # Build a searchable text corpus from all findings + narratives.
+    corpus_parts: List[str] = []
+    for f in findings:
+        corpus_parts.append((f.get("claim") or "").lower())
+    for ao in raw_outputs:
+        corpus_parts.append((ao.get("narrative_markdown") or "").lower())
+    corpus = "\n".join(corpus_parts)
+
+    # High-risk hallucination patterns — if a bullet matches these AND can't be found
+    # in the corpus, it's almost certainly fabricated.
+    _HALLUCINATION_PATTERNS = re.compile(
+        r"(fatal|fatality|death|killed|died)"
+        r"|(work(place|er)?\s+(accident|incident|safety\s+death))"
+        r"|(explosion|collapsed|crushed)",
+        re.IGNORECASE,
+    )
+
+    lines = body.split("\n")
+    cleaned: List[str] = []
+
+    for line in lines:
+        stripped = line.strip()
+
+        # Always keep non-bullet lines (headers, blank lines, structural elements).
+        if not stripped.startswith(("-", "*")) or len(stripped) < 20:
+            cleaned.append(line)
+            continue
+
+        # Always keep sanctions screening results and [unverified] markers.
+        lower = stripped.lower()
+        if any(kw in lower for kw in ("ofac", "sdn", "bis entity", "un sanctions",
+                                       "eu sanctions", "not found on", "not listed",
+                                       "unverified", "prior manual")):
+            cleaned.append(line)
+            continue
+
+        # Check if this bullet contains high-risk hallucination patterns.
+        if _HALLUCINATION_PATTERNS.search(stripped):
+            # For high-risk claims, require strong corpus match.
+            clean_text = re.sub(r"\[\d+\]", "", stripped)
+            clean_text = re.sub(r"\[(CONFIRMED|REPORTED|UNVERIFIED)[^\]]*\]", "", clean_text, flags=re.IGNORECASE)
+            clean_text = re.sub(r"^[-*]\s*", "", clean_text).strip().lower()
+
+            # Extract distinctive words (4+ chars, skip common/stop words).
+            _STOP = {"that", "this", "with", "from", "were", "been", "have", "will",
+                     "also", "which", "their", "than", "into", "over", "such", "more",
+                     "against", "between", "through", "about", "group", "company",
+                     "mining", "metals", "fortescue"}
+            words = [w for w in re.findall(r"[a-z]{4,}", clean_text) if w not in _STOP]
+
+            if not words:
+                cleaned.append(line)
+                continue
+
+            # Require at least 40% of distinctive words to appear in corpus.
+            matched = sum(1 for w in words if w in corpus)
+            ratio = matched / len(words) if words else 0
+
+            if ratio < 0.4:
+                continue  # Hallucination detected — strip this bullet.
+
+        cleaned.append(line)
+
+    result = "\n".join(cleaned)
+    result = re.sub(r"\n{3,}", "\n\n", result)
+    return result

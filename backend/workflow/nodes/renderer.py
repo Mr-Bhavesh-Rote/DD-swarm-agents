@@ -42,22 +42,63 @@ def renderer_node(state: Dict[str, Any], config: Dict[str, Any] | None = None) -
 
     # Strip orphaned citations: remove [n] markers from body where n doesn't exist
     # in the source list (LLM hallucinated the citation ID).
+    # Also strip [F:n] internal finding references that leaked into the output.
+    finding_ref_re = re.compile(r"\[F:\d+\]")
+
     def _strip_orphaned(body: str) -> str:
+        # First remove [F:xx] internal finding references
+        body = finding_ref_re.sub("", body or "")
         def _repl(m: re.Match) -> str:
             cid = int(m.group(1))
             return m.group(0) if cid in valid_source_ids else ""
-        return cite_re.sub(_repl, body or "")
+        return cite_re.sub(_repl, body)
+
+    # Strip negative-search-result lines from Unverified sections and remove
+    # lines about unnamed/unidentified companies (hallucination risk).
+    _negative_re = re.compile(
+        r"(no (entries|records|results|listings?) found)"
+        r"|(not (found|identified|listed) (on|in))"
+        r"|(does not appear)"
+        r"|(no evidence)"
+        r"|(returned no)"
+        r"|(unnamed|unidentified) (company|firm|entity)",
+        re.IGNORECASE,
+    )
+
+    def _clean_unverified_lines(body: str) -> str:
+        """Remove negative-result and unnamed-entity lines from body text."""
+        cleaned = []
+        for line in body.split("\n"):
+            stripped = line.strip()
+            # Only filter bullet points (- or *), not headers or other structure
+            if stripped.startswith(("-", "*")) and _negative_re.search(stripped):
+                continue
+            cleaned.append(line)
+        return "\n".join(cleaned)
 
     all_cited_ids: set[int] = set()
     for sec in sections:
         sec["body_markdown"] = _strip_orphaned(sec.get("body_markdown", "") or "")
+        # Clean negative results from unverified subsections
+        sec["body_markdown"] = _clean_unverified_lines(sec.get("body_markdown", "") or "")
         ids = sorted({int(x) for x in cite_re.findall(sec.get("body_markdown", "") or "")})
         sec["citations"] = ids
         all_cited_ids.update(ids)
 
     # Final report only includes sources actually cited in the body — uncited research
     # sources bloat the references list and confuse reviewers.
-    final_sources = [s for s in wire_sources if s.get("id") in all_cited_ids]
+    # Also flag sources where scraper failed to retrieve content.
+    sources_full = {s["id"]: s for s in sources}  # includes content field
+    final_sources = []
+    for s in wire_sources:
+        if s.get("id") not in all_cited_ids:
+            continue
+        full = sources_full.get(s["id"], {})
+        has_content = bool((full.get("content") or "").strip())
+        enriched = dict(s)
+        if not has_content:
+            enriched["unreachable"] = True
+        final_sources.append(enriched)
 
     source_manifest = _build_source_manifest(state)
     quality_assessment = state.get("quality_assessment", {})
@@ -136,7 +177,8 @@ def _final_markdown(report: Dict[str, Any]) -> str:
 
     lines.append("## References")
     for s in report.get("sources", []):
-        lines.append(f"[{s['id']}] [{s.get('title') or s['url']}]({s['url']})")
+        tag = " ⚠️ LINK UNAVAILABLE" if s.get("unreachable") else ""
+        lines.append(f"[{s['id']}] [{s.get('title') or s['url']}]({s['url']}){tag}")
     return "\n".join(lines)
 
 

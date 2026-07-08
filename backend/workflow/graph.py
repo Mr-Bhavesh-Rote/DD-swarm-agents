@@ -14,7 +14,9 @@ from workflow.nodes.aggregator import aggregator_node
 from workflow.nodes.planner import planner_node
 from workflow.nodes.quality_gate import quality_gate_node
 from workflow.nodes.renderer import renderer_node
-from workflow.nodes.research import dispatch_research, research_agent_node
+from workflow.nodes.research import (
+    dispatch_overview, dispatch_adverse, entity_extractor_node, research_agent_node,
+)
 from workflow.nodes.synthesizer import synthesizer_node
 from workflow.nodes.verifier import route_after_verify, verifier_node
 from workflow.state import GraphState
@@ -31,6 +33,11 @@ def build_graph(checkpointer: Optional[Any] = None):
     g = StateGraph(GraphState)
 
     g.add_node("planner", planner_node)
+    # Phase 1: overview_ownership agent runs alone first so its entity discoveries can be
+    # injected into adverse/sanctions/pep agents in phase 2.
+    g.add_node("overview_agent", research_agent_node)
+    g.add_node("entity_extractor", entity_extractor_node)
+    # Phase 2: all other agents receive overview context and chain-search connected entities.
     g.add_node("research_agent", research_agent_node)
     g.add_node("aggregator", aggregator_node)
     g.add_node("synthesizer", synthesizer_node)
@@ -39,8 +46,11 @@ def build_graph(checkpointer: Optional[Any] = None):
     g.add_node("renderer", renderer_node)
 
     g.add_edge(START, "planner")
-    # Parallel fan-out: one research_agent branch per research agent in the plan.
-    g.add_conditional_edges("planner", dispatch_research, ["research_agent"])
+    # Phase 1 fan-out — overview agents only (or jump to entity_extractor if none in plan).
+    g.add_conditional_edges("planner", dispatch_overview, ["overview_agent", "entity_extractor"])
+    g.add_edge("overview_agent", "entity_extractor")
+    # Phase 2 fan-out — adverse/sanctions/pep agents with entity context.
+    g.add_conditional_edges("entity_extractor", dispatch_adverse, ["research_agent"])
     g.add_edge("research_agent", "aggregator")
     g.add_edge("aggregator", "synthesizer")
     g.add_edge("synthesizer", "verifier")
