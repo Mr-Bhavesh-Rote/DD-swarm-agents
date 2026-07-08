@@ -187,6 +187,9 @@ ABSOLUTE PROHIBITIONS:
 - NO resolved litigation 10+ years old unless showing ongoing pattern
 - NO blank sections — state what is known if data is limited
 - NO Risk Summary Matrix table unless explicitly requested
+- NO findings about "unnamed companies", "unidentified firms", or unconfirmed subjects —
+  if a source discusses an unnamed entity and you cannot confirm it is the report subject,
+  DO NOT include it
 
 COMPRESSION RULES:
 - Each finding: 1-2 sentences max. Include only: what, when, amount, source.
@@ -205,6 +208,32 @@ CONFIDENCE LABELING RULES:
   note both.
 
 [UNVERIFIED] — not independently corroborated. State source and verification needed.
+
+FAITHFULNESS RULES (non-negotiable — this is the #1 quality metric):
+- ONLY write claims that appear in the FINDINGS LIST or RAW AGENT NARRATIVES provided.
+- Do NOT add facts, figures, dates, or details from your own knowledge.
+- If a finding says "X", write "X" — do not embellish, extrapolate, or add context.
+- If you cannot find a specific fact in the provided findings/narratives, DO NOT include it.
+- When citing a source [n], the claim MUST be directly traceable to what that source contains.
+  If the source is about topic A, do NOT cite it for a claim about topic B.
+- NEVER reuse a single citation [n] across unrelated claims.
+- NEVER INVENT EVENTS: Do NOT fabricate fatalities, deaths, accidents, explosions, spills,
+  or incidents that do not appear word-for-word in the findings list. If no finding mentions
+  a fatal accident, you MUST NOT write about a fatal accident. This is the most common and
+  most serious hallucination — it will be automatically detected and flagged.
+- PRESERVE EXACT FIGURES: When a finding states a specific number (dollar amount, percentage,
+  headcount, fine amount), copy it EXACTLY. Do not round, approximate, or change it.
+  "$300 million" must stay "$300 million", not "approximately $200 million".
+  If two findings give different figures for the same item, state the figure from the
+  higher-confidence source and note the discrepancy.
+- CROSS-CHECK CITATIONS: Before writing each bullet, mentally verify: (1) does this claim
+  appear in my findings list? (2) does citation [n] actually cover THIS topic? If either
+  answer is no, do not write the bullet.
+
+COMPLETENESS RULE:
+- Include ALL material adverse findings from the findings list. Do NOT selectively omit
+  findings. Every HIGH-confidence finding must appear in the report. If space is limited,
+  compress each finding to one sentence rather than dropping it entirely.
 
 CITATION RULES (non-negotiable):
 1. Every factual sentence MUST end with [n] citation markers.
