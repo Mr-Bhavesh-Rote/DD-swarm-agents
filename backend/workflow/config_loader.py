@@ -143,7 +143,7 @@ def _normalize_plan_dict(data: Dict[str, Any], task: str) -> WorkflowPlan:
     specs: List[AgentSpec] = []
     for a in raw_agents:
         tools = a.get("suggested_tools") or a.get("tools") or ["web_search", "scraper"]
-        _validate_tools(a.get("name", "?"), tools)
+        tools = _validate_tools(a.get("name", "?"), tools, strict=False)
         specs.append(
             AgentSpec(
                 name=a["name"],
@@ -173,14 +173,21 @@ def _normalize_plan_dict(data: Dict[str, Any], task: str) -> WorkflowPlan:
     )
 
 
-def _validate_tools(agent_name: str, tools: Any) -> None:
+def _validate_tools(agent_name: str, tools: Any, *, strict: bool = True) -> list:
+    """Validate tools list. In strict mode (YAML templates) raise on unknown tools.
+    In lenient mode (AI-generated plans) silently drop hallucinated tool names."""
     if not isinstance(tools, list):
         raise ConfigError(f"Agent '{agent_name}' tools must be a list.")
-    for t in tools:
-        if t not in KNOWN_TOOLS:
-            raise ConfigError(
-                f"Agent '{agent_name}' references unknown tool '{t}'. Known: {sorted(KNOWN_TOOLS)}"
-            )
+    if strict:
+        for t in tools:
+            if t not in KNOWN_TOOLS:
+                raise ConfigError(
+                    f"Agent '{agent_name}' references unknown tool '{t}'. Known: {sorted(KNOWN_TOOLS)}"
+                )
+        return tools
+    # Lenient: strip unknown tools, fall back to web_search+scraper if nothing remains.
+    known = [t for t in tools if t in KNOWN_TOOLS]
+    return known if known else ["web_search", "scraper"]
 
 
 def _detect_cycles(specs: List[AgentSpec]) -> None:

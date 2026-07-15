@@ -1,0 +1,2363 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Deep-DD — AI Adverse Due-Diligence Platform</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;0,9..144,700;1,9..144,400&family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --navy: #0d1b2a;
+      --slate: #1b2f45;
+      --steel: #2d4a63;
+      --gold: #c9a84c;
+      --gold-light: #e8c97a;
+      --crimson: #b83232;
+      --crimson-light: #e05555;
+      --sage: #4a8c6f;
+      --sage-light: #6aad8e;
+      --parchment: #f8f4ec;
+      --warm-white: #fdfaf5;
+      --text-primary: #1a1a2e;
+      --text-secondary: #3d3d5c;
+      --text-muted: #6b6b8a;
+      --border: #d8d0c0;
+      --border-light: #ede8df;
+      --highlight-bg: #fef9ee;
+      --risk-bg: #fff5f5;
+      --risk-border: #f5c6c6;
+      --safe-bg: #f0fff8;
+      --safe-border: #b3e8d0;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--warm-white);
+      color: var(--text-primary);
+      line-height: 1.7;
+      font-size: 16px;
+    }
+
+    /* ── MASTHEAD ── */
+    .masthead {
+      background: var(--navy);
+      color: #e8e0d0;
+      padding: 0.55rem 2rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.72rem;
+      letter-spacing: 0.08em;
+      border-bottom: 2px solid var(--gold);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .masthead-left { display: flex; gap: 1.5rem; align-items: center; }
+    .masthead-tag {
+      background: var(--gold);
+      color: var(--navy);
+      padding: 0.15rem 0.5rem;
+      font-weight: 500;
+      font-size: 0.65rem;
+      letter-spacing: 0.1em;
+    }
+    .masthead-nav { display: flex; gap: 1.4rem; }
+    .masthead-nav a {
+      color: #aaa8b8;
+      text-decoration: none;
+      transition: color 0.2s;
+      font-size: 0.68rem;
+    }
+    .masthead-nav a:hover { color: var(--gold-light); }
+
+    /* ── HERO ── */
+    .hero {
+      background: var(--navy);
+      color: var(--parchment);
+      padding: 5rem 2rem 4rem;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+    .hero::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(ellipse at 30% 50%, rgba(201,168,76,0.08) 0%, transparent 60%),
+                  radial-gradient(ellipse at 70% 30%, rgba(74,140,111,0.06) 0%, transparent 50%);
+      pointer-events: none;
+    }
+    .hero-eyebrow {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.72rem;
+      letter-spacing: 0.2em;
+      color: var(--gold);
+      text-transform: uppercase;
+      margin-bottom: 1.2rem;
+    }
+    .hero h1 {
+      font-family: 'Fraunces', serif;
+      font-size: clamp(2.4rem, 5vw, 4rem);
+      font-weight: 700;
+      line-height: 1.15;
+      margin-bottom: 1.2rem;
+      color: #f5f0e8;
+    }
+    .hero h1 em { color: var(--gold-light); font-style: italic; }
+    .hero-sub {
+      font-size: 1.1rem;
+      color: #9da8b8;
+      max-width: 680px;
+      margin: 0 auto 2.5rem;
+      line-height: 1.75;
+    }
+    .hero-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.6rem;
+      justify-content: center;
+      margin-bottom: 2.5rem;
+    }
+    .chip {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.7rem;
+      padding: 0.3rem 0.8rem;
+      border: 1px solid rgba(201,168,76,0.4);
+      color: var(--gold-light);
+      letter-spacing: 0.05em;
+    }
+    .hero-stats {
+      display: flex;
+      gap: 3rem;
+      justify-content: center;
+      flex-wrap: wrap;
+      border-top: 1px solid rgba(255,255,255,0.1);
+      padding-top: 2rem;
+    }
+    .stat { text-align: center; }
+    .stat-number {
+      font-family: 'Fraunces', serif;
+      font-size: 2rem;
+      color: var(--gold-light);
+      font-weight: 600;
+    }
+    .stat-label {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.65rem;
+      color: #7a8898;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      margin-top: 0.2rem;
+    }
+
+    /* ── SECTIONS ── */
+    .section { padding: 5rem 2rem; max-width: 1100px; margin: 0 auto; }
+    .section-alt { background: var(--parchment); }
+    .section-alt .section { max-width: 100%; padding-left: 10%; padding-right: 10%; }
+    .section-dark { background: var(--slate); color: var(--parchment); }
+    .section-dark .section { max-width: 100%; padding-left: 10%; padding-right: 10%; }
+
+    .section-label {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.68rem;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--gold);
+      margin-bottom: 0.6rem;
+    }
+    .section-dark .section-label { color: var(--gold-light); }
+    .section-title {
+      font-family: 'Fraunces', serif;
+      font-size: clamp(1.8rem, 3vw, 2.6rem);
+      font-weight: 600;
+      line-height: 1.2;
+      margin-bottom: 1rem;
+    }
+    .section-intro {
+      font-size: 1.05rem;
+      color: var(--text-secondary);
+      max-width: 750px;
+      margin-bottom: 3rem;
+      line-height: 1.8;
+    }
+    .section-dark .section-intro { color: #b0bcc8; }
+
+    /* ── MENTAL MODEL ── */
+    .mental-model {
+      background: var(--navy);
+      color: var(--parchment);
+      padding: 3.5rem 10%;
+    }
+    .mental-model-inner {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr 1fr 1fr;
+      gap: 0;
+      border: 1px solid rgba(201,168,76,0.3);
+    }
+    .mm-step {
+      padding: 1.5rem;
+      border-right: 1px solid rgba(201,168,76,0.15);
+      position: relative;
+    }
+    .mm-step:last-child { border-right: none; }
+    .mm-num {
+      font-family: 'Fraunces', serif;
+      font-size: 2.5rem;
+      color: rgba(201,168,76,0.2);
+      font-weight: 700;
+      line-height: 1;
+      margin-bottom: 0.5rem;
+    }
+    .mm-title {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.65rem;
+      color: var(--gold);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      margin-bottom: 0.5rem;
+    }
+    .mm-desc {
+      font-size: 0.85rem;
+      color: #9da8b8;
+      line-height: 1.6;
+    }
+    .mm-arrow {
+      position: absolute;
+      right: -12px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 24px;
+      height: 24px;
+      background: var(--gold);
+      clip-path: polygon(0 20%, 60% 20%, 60% 0%, 100% 50%, 60% 100%, 60% 80%, 0 80%);
+      z-index: 2;
+    }
+
+    /* ── TWO-COL ── */
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 3rem; align-items: start; }
+    .three-col { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 2rem; }
+
+    /* ── CARDS ── */
+    .card {
+      background: white;
+      border: 1px solid var(--border);
+      padding: 1.8rem;
+      position: relative;
+    }
+    .card-accent {
+      width: 3px;
+      height: 100%;
+      position: absolute;
+      left: 0;
+      top: 0;
+      background: var(--gold);
+    }
+    .card-accent-red { background: var(--crimson); }
+    .card-accent-green { background: var(--sage); }
+    .card-accent-blue { background: #3a7bd5; }
+
+    .card h3 {
+      font-family: 'Fraunces', serif;
+      font-size: 1.15rem;
+      margin-bottom: 0.6rem;
+      font-weight: 600;
+    }
+    .card p { font-size: 0.9rem; color: var(--text-secondary); line-height: 1.7; }
+    .card-tag {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.62rem;
+      letter-spacing: 0.1em;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      margin-bottom: 0.4rem;
+    }
+
+    /* ── PIPELINE ── */
+    .pipeline {
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+      border: 1px solid var(--border);
+      overflow: hidden;
+    }
+    .pipeline-phase {
+      padding: 0.5rem 1.2rem;
+      background: var(--navy);
+      color: var(--gold);
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.65rem;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+    }
+    .pipeline-nodes {
+      display: flex;
+      align-items: stretch;
+      overflow-x: auto;
+    }
+    .pipeline-node {
+      flex: 1;
+      min-width: 140px;
+      padding: 1.2rem;
+      border-right: 1px solid var(--border);
+      position: relative;
+      background: white;
+    }
+    .pipeline-node:last-child { border-right: none; }
+    .pipeline-node::after {
+      content: '→';
+      position: absolute;
+      right: -10px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--gold);
+      font-size: 1rem;
+      font-weight: bold;
+      z-index: 2;
+    }
+    .pipeline-node:last-child::after { display: none; }
+    .pipeline-node-num {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.6rem;
+      color: var(--text-muted);
+      margin-bottom: 0.3rem;
+    }
+    .pipeline-node-name {
+      font-family: 'Fraunces', serif;
+      font-size: 0.95rem;
+      font-weight: 600;
+      margin-bottom: 0.3rem;
+    }
+    .pipeline-node-model {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.6rem;
+      color: var(--gold);
+      margin-bottom: 0.5rem;
+    }
+    .pipeline-node-desc { font-size: 0.78rem; color: var(--text-muted); line-height: 1.5; }
+    .pipeline-parallel {
+      background: #fafaf8;
+      border-top: 1px solid var(--border);
+    }
+    .parallel-header {
+      padding: 0.5rem 1.2rem;
+      background: rgba(74,140,111,0.08);
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.62rem;
+      color: var(--sage);
+      letter-spacing: 0.12em;
+      border-bottom: 1px solid var(--border);
+    }
+    .parallel-agents {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      border-bottom: 1px solid var(--border);
+    }
+    .agent-card {
+      padding: 1rem;
+      border-right: 1px solid var(--border-light);
+    }
+    .agent-card:last-child { border-right: none; }
+    .agent-icon {
+      font-size: 1.4rem;
+      margin-bottom: 0.4rem;
+    }
+    .agent-name {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.65rem;
+      color: var(--sage);
+      font-weight: 500;
+      margin-bottom: 0.3rem;
+    }
+    .agent-goal { font-size: 0.78rem; color: var(--text-muted); line-height: 1.5; }
+
+    /* ── COMPLIANCE TOOLS ── */
+    .tool-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 1rem;
+    }
+    .tool-card {
+      border: 1px solid var(--border);
+      padding: 1rem 1.2rem;
+      background: white;
+    }
+    .tool-name {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.72rem;
+      color: var(--navy);
+      font-weight: 500;
+      margin-bottom: 0.2rem;
+    }
+    .tool-db {
+      font-size: 0.78rem;
+      color: var(--text-secondary);
+      margin-bottom: 0.3rem;
+    }
+    .tool-domain {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.6rem;
+      padding: 0.15rem 0.4rem;
+      background: var(--highlight-bg);
+      color: var(--gold);
+      border: 1px solid rgba(201,168,76,0.3);
+      display: inline-block;
+    }
+
+    /* ── USE CASES ── */
+    .usecase-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 1.5rem;
+    }
+    .usecase {
+      border: 1px solid var(--border);
+      overflow: hidden;
+      background: white;
+    }
+    .usecase-header {
+      background: var(--slate);
+      color: var(--parchment);
+      padding: 1rem 1.2rem;
+      display: flex;
+      align-items: center;
+      gap: 0.8rem;
+    }
+    .usecase-icon { font-size: 1.5rem; }
+    .usecase-title { font-family: 'Fraunces', serif; font-size: 1rem; font-weight: 600; }
+    .usecase-body { padding: 1.2rem; }
+    .usecase-body p { font-size: 0.88rem; color: var(--text-secondary); margin-bottom: 0.8rem; line-height: 1.6; }
+    .usecase-body ul { padding-left: 1.2rem; }
+    .usecase-body li { font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.3rem; line-height: 1.5; }
+
+    /* ── REPORTS ── */
+    .report-list { display: flex; flex-direction: column; gap: 2rem; }
+    .report-item {
+      border: 1px solid var(--border);
+      background: white;
+      overflow: hidden;
+    }
+    .report-header {
+      display: flex;
+      align-items: center;
+      gap: 1.2rem;
+      padding: 1.2rem 1.5rem;
+      background: var(--highlight-bg);
+      border-bottom: 1px solid var(--border);
+      cursor: pointer;
+    }
+    .report-rank {
+      font-family: 'Fraunces', serif;
+      font-size: 2rem;
+      color: var(--gold);
+      font-weight: 700;
+      min-width: 2.5rem;
+    }
+    .report-title-block { flex: 1; }
+    .report-name { font-family: 'Fraunces', serif; font-size: 1.15rem; font-weight: 600; margin-bottom: 0.2rem; }
+    .report-meta { font-family: 'IBM Plex Mono', monospace; font-size: 0.65rem; color: var(--text-muted); }
+    .report-body {
+      padding: 1.5rem;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.5rem;
+    }
+    .report-section-title {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.65rem;
+      letter-spacing: 0.12em;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      margin-bottom: 0.5rem;
+    }
+    .report-body ul { padding-left: 1.2rem; }
+    .report-body li { font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.3rem; line-height: 1.5; }
+
+    .severity-badge {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.6rem;
+      padding: 0.15rem 0.5rem;
+      letter-spacing: 0.06em;
+      display: inline-block;
+    }
+    .sev-critical { background: var(--risk-bg); color: var(--crimson); border: 1px solid var(--risk-border); }
+    .sev-high { background: #fff8f0; color: #c87a20; border: 1px solid #f5d9b3; }
+    .sev-medium { background: #fffff0; color: #8a8a20; border: 1px solid #e5e5a0; }
+    .sev-low { background: var(--safe-bg); color: var(--sage); border: 1px solid var(--safe-border); }
+
+    /* ── QUALITY VERIFICATION ── */
+    .verify-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; }
+    .score-card {
+      border: 1px solid var(--border);
+      padding: 1.5rem;
+      background: white;
+      text-align: center;
+    }
+    .score-value {
+      font-family: 'Fraunces', serif;
+      font-size: 3rem;
+      font-weight: 700;
+      color: var(--sage);
+    }
+    .score-label {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.65rem;
+      color: var(--text-muted);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      margin-top: 0.4rem;
+    }
+    .score-desc { font-size: 0.85rem; color: var(--text-secondary); margin-top: 0.6rem; line-height: 1.6; }
+
+    /* ── ARCHITECTURE POINTS ── */
+    .arch-list { display: flex; flex-direction: column; gap: 1.2rem; counter-reset: arch; }
+    .arch-point {
+      display: flex;
+      gap: 1.2rem;
+      padding: 1.2rem 1.5rem;
+      border: 1px solid var(--border);
+      background: white;
+      position: relative;
+    }
+    .arch-num {
+      font-family: 'Fraunces', serif;
+      font-size: 1.8rem;
+      color: rgba(201,168,76,0.3);
+      font-weight: 700;
+      min-width: 2rem;
+      line-height: 1;
+      margin-top: 0.1rem;
+    }
+    .arch-content {}
+    .arch-title {
+      font-family: 'Fraunces', serif;
+      font-size: 1rem;
+      font-weight: 600;
+      margin-bottom: 0.3rem;
+    }
+    .arch-desc { font-size: 0.88rem; color: var(--text-secondary); line-height: 1.7; }
+    .arch-code {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.78rem;
+      background: var(--parchment);
+      padding: 0.6rem 0.8rem;
+      margin-top: 0.5rem;
+      border-left: 2px solid var(--gold);
+      color: var(--text-secondary);
+    }
+
+    /* ── FUTURE ── */
+    .future-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+    .future-item {
+      border: 1px solid var(--border);
+      padding: 1.5rem;
+      background: white;
+      position: relative;
+      overflow: hidden;
+    }
+    .future-horizon {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.62rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      margin-bottom: 0.5rem;
+    }
+    .horizon-near { color: var(--sage); }
+    .horizon-mid { color: var(--gold); }
+    .horizon-far { color: var(--crimson); }
+    .future-title {
+      font-family: 'Fraunces', serif;
+      font-size: 1rem;
+      font-weight: 600;
+      margin-bottom: 0.4rem;
+    }
+    .future-desc { font-size: 0.88rem; color: var(--text-secondary); line-height: 1.7; }
+
+    /* ── GLOSSARY ── */
+    .glossary-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.8rem;
+    }
+    .glossary-item {
+      padding: 0.8rem 1rem;
+      background: white;
+      border: 1px solid var(--border-light);
+    }
+    .glossary-term {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.75rem;
+      color: var(--navy);
+      font-weight: 500;
+      text-decoration: underline;
+      text-decoration-style: dotted;
+      cursor: help;
+    }
+    .glossary-def {
+      font-size: 0.82rem;
+      color: var(--text-muted);
+      margin-top: 0.2rem;
+      line-height: 1.5;
+    }
+
+    /* ── TOOLTIP ── */
+    [data-tooltip] {
+      position: relative;
+      text-decoration: underline;
+      text-decoration-style: dotted;
+      cursor: help;
+    }
+    [data-tooltip]::after {
+      content: attr(data-tooltip);
+      position: absolute;
+      bottom: calc(100% + 6px);
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--navy);
+      color: var(--parchment);
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.7rem;
+      padding: 0.4rem 0.7rem;
+      white-space: nowrap;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s;
+      z-index: 50;
+    }
+    [data-tooltip]:hover::after { opacity: 1; }
+
+    /* ── TECH STACK TABLE ── */
+    .stack-table { width: 100%; border-collapse: collapse; }
+    .stack-table th {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.65rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      padding: 0.6rem 1rem;
+      text-align: left;
+      border-bottom: 2px solid var(--border);
+    }
+    .stack-table td {
+      padding: 0.7rem 1rem;
+      font-size: 0.88rem;
+      border-bottom: 1px solid var(--border-light);
+      color: var(--text-secondary);
+    }
+    .stack-table tr:last-child td { border-bottom: none; }
+    .stack-table td:first-child {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.75rem;
+      color: var(--navy);
+      font-weight: 500;
+    }
+
+    /* ── AUDIENCE CALLOUT ── */
+    .audience-row {
+      display: flex;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+    .audience-card {
+      flex: 1;
+      min-width: 200px;
+      border: 1px solid var(--border);
+      padding: 1.2rem;
+      background: white;
+    }
+    .audience-role {
+      font-family: 'Fraunces', serif;
+      font-size: 1rem;
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+    }
+    .audience-chapters {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.3rem;
+    }
+    .aud-chip {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.62rem;
+      padding: 0.2rem 0.5rem;
+      background: var(--parchment);
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+    }
+
+    /* ── FOOTER ── */
+    footer {
+      background: var(--navy);
+      color: #6a7888;
+      padding: 2.5rem 10%;
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.68rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 1rem;
+      border-top: 2px solid var(--gold);
+    }
+    footer strong { color: var(--gold); }
+
+    /* ── RESPONSIVE ── */
+    @media (max-width: 800px) {
+      .masthead-nav { display: none; }
+      .two-col, .three-col, .parallel-agents, .verify-grid,
+      .future-grid, .glossary-grid, .mental-model-inner, .report-body { grid-template-columns: 1fr; }
+      .mm-step { border-right: none; border-bottom: 1px solid rgba(201,168,76,0.15); }
+      .mm-arrow { display: none; }
+      .section-alt .section, .section-dark .section { padding-left: 1.5rem; padding-right: 1.5rem; }
+      footer { flex-direction: column; }
+    }
+
+    /* ── DIVIDER ── */
+    hr.section-divider {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 0;
+    }
+
+    /* ── HIGHLIGHT BOX ── */
+    .highlight-box {
+      background: var(--highlight-bg);
+      border: 1px solid rgba(201,168,76,0.3);
+      border-left: 4px solid var(--gold);
+      padding: 1.2rem 1.5rem;
+      margin: 1.5rem 0;
+    }
+    .highlight-box p { font-size: 0.92rem; color: var(--text-secondary); line-height: 1.7; margin: 0; }
+    .risk-box {
+      background: var(--risk-bg);
+      border: 1px solid var(--risk-border);
+      border-left: 4px solid var(--crimson);
+    }
+    .risk-box p { color: #7a2020; }
+
+    .inline-code {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.82em;
+      background: var(--parchment);
+      padding: 0.1em 0.4em;
+      border: 1px solid var(--border-light);
+      color: var(--navy);
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── MASTHEAD ── -->
+<nav class="masthead">
+  <div class="masthead-left">
+    <span class="masthead-tag">INTERNAL</span>
+    <span>DEEP-DD · Adverse Due-Diligence Platform · Edition 2026</span>
+  </div>
+  <div class="masthead-nav">
+    <a href="#about">About</a>
+    <a href="#objective">Objective</a>
+    <a href="#why">Why & How</a>
+    <a href="#architecture">Architecture</a>
+    <a href="#usecases">Use Cases</a>
+    <a href="#planning">Planning Modes</a>
+    <a href="#reports">Sample Reports</a>
+    <a href="#future">Future</a>
+    <a href="#glossary">Glossary</a>
+  </div>
+</nav>
+
+<!-- ── HERO ── -->
+<header class="hero">
+  <p class="hero-eyebrow">AI1stLab · Compliance Technology</p>
+  <h1>Deep-DD — <em>Adverse Due-Diligence</em><br>at Machine Speed</h1>
+  <p class="hero-sub">
+    A full-stack multi-agent AI platform that deploys a parallel research swarm,
+    queries 13+ compliance databases, and delivers verified, citation-grounded
+    adverse due-diligence reports on companies and individuals.
+  </p>
+  <div class="hero-chips">
+    <span class="chip">LangGraph Orchestration</span>
+    <span class="chip">Claude Sonnet 4.6</span>
+    <span class="chip">OFAC · PACER · EPA · OCCRP</span>
+    <span class="chip">Faithfulness ≥ 0.85</span>
+    <span class="chip">RAW + FINAL Reports</span>
+    <span class="chip">Real-Time SSE Progress</span>
+  </div>
+  <div class="hero-stats">
+    <div class="stat">
+      <div class="stat-number">5</div>
+      <div class="stat-label">Parallel Agents</div>
+    </div>
+    <div class="stat">
+      <div class="stat-number">13+</div>
+      <div class="stat-label">Compliance Databases</div>
+    </div>
+    <div class="stat">
+      <div class="stat-number">85%</div>
+      <div class="stat-label">Min. Faithfulness Threshold</div>
+    </div>
+    <div class="stat">
+      <div class="stat-number">2</div>
+      <div class="stat-label">Report Formats (RAW + FINAL)</div>
+    </div>
+    <div class="stat">
+      <div class="stat-number">&lt;$5</div>
+      <div class="stat-label">Target Cost Per Run</div>
+    </div>
+  </div>
+</header>
+
+<!-- ── MENTAL MODEL ── -->
+<div class="mental-model">
+  <div class="mental-model-inner">
+    <div class="mm-step">
+      <div class="mm-num">01</div>
+      <div class="mm-title">Submit Subject</div>
+      <div class="mm-desc">Analyst enters company or individual name + task description into the platform.</div>
+      <div class="mm-arrow"></div>
+    </div>
+    <div class="mm-step">
+      <div class="mm-num">02</div>
+      <div class="mm-title">Plan &amp; Dispatch</div>
+      <div class="mm-desc">Planner loads YAML template or generates a custom agent swarm via LLM reasoning.</div>
+      <div class="mm-arrow"></div>
+    </div>
+    <div class="mm-step">
+      <div class="mm-num">03</div>
+      <div class="mm-title">Research Swarm</div>
+      <div class="mm-desc">5 parallel agents hunt sanctions, litigation, adverse media, PEP ties, and ownership across 13+ databases.</div>
+      <div class="mm-arrow"></div>
+    </div>
+    <div class="mm-step">
+      <div class="mm-num">04</div>
+      <div class="mm-title">Synthesize &amp; Verify</div>
+      <div class="mm-desc">Aggregator dedupes. Synthesizer drafts cited report. Verifier scores faithfulness vs. 0.85 threshold.</div>
+      <div class="mm-arrow"></div>
+    </div>
+    <div class="mm-step">
+      <div class="mm-num">05</div>
+      <div class="mm-title">Export &amp; Review</div>
+      <div class="mm-desc">Analyst reviews FINAL report, approves, and exports as PDF, Word, or JSON with clickable citations.</div>
+    </div>
+  </div>
+</div>
+
+<hr class="section-divider" />
+
+<!-- ── ABOUT ── -->
+<section id="about">
+  <div class="section">
+    <p class="section-label">01 · About</p>
+    <h2 class="section-title">What is Deep-DD?</h2>
+    <p class="section-intro">
+      Deep-DD is a US-compliance adverse due-diligence research platform. It is not a financial analysis tool
+      or a background-check product. Its singular mandate is to <strong>hunt for derogatory issues</strong> —
+      sanctions, litigation, corruption, weapons supply chains, human-rights abuses, environmental harm,
+      and adverse media — and surface them with source-verified citations.
+    </p>
+
+    <div class="two-col">
+      <div>
+        <div class="highlight-box">
+          <p>
+            <strong>Not investment research. Not a credit check.</strong><br />
+            Deep-DD is a compliance &amp; adverse screening tool. Every report carries an explicit disclaimer:
+            <em>"Decision-support instrument — not a background-check product. Requires human review before action."</em>
+          </p>
+        </div>
+        <p style="font-size:0.92rem; color:var(--text-secondary); line-height:1.8; margin-top:1rem;">
+          The platform operates on two subject types: <span class="inline-code">company</span> and
+          <span class="inline-code">individual</span>. For companies, it maps corporate structure, beneficial
+          owners, sanctions exposure, litigation history, and supply-chain controversies. For individuals,
+          it covers identity, career, legal/regulatory history, PEP status, controversies, and net worth flags.
+        </p>
+        <p style="font-size:0.92rem; color:var(--text-secondary); line-height:1.8; margin-top:1rem;">
+          Two planning modes give flexibility: <strong>Template Mode</strong> uses fixed YAML agent definitions
+          for fast, reproducible, bounded-cost runs; <strong>AI-Tailored Mode</strong> generates a custom swarm
+          per task description for complex investigations where a standard template falls short.
+        </p>
+      </div>
+
+      <div>
+        <table class="stack-table">
+          <thead>
+            <tr><th>Layer</th><th>Technology</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Frontend</td><td>React 18 + TypeScript, Redux Toolkit, Material-UI, Vite</td></tr>
+            <tr><td>Backend</td><td>FastAPI, Python 3.11+, Pydantic v2</td></tr>
+            <tr><td>Orchestration</td><td>LangGraph StateGraph (fan-out Send API)</td></tr>
+            <tr><td>LLM</td><td>Anthropic Claude (Sonnet 4.6 default, Opus optional)</td></tr>
+            <tr><td>Database</td><td>PostgreSQL 15+ (JSONB reports), SQLAlchemy 2.0, Alembic</td></tr>
+            <tr><td>Job Queue</td><td>RQ + Redis (worker pool, N concurrent runs)</td></tr>
+            <tr><td>Real-Time</td><td>Server-Sent Events (SSE) per-agent live status</td></tr>
+            <tr><td>Observability</td><td>Langfuse v3 (traces, eval scores, prompt registry)</td></tr>
+            <tr><td>Search</td><td>Tavily (configurable depth: basic / advanced)</td></tr>
+            <tr><td>Export</td><td>WeasyPrint (PDF), python-docx (Word), Markdown</td></tr>
+            <tr><td>Auth</td><td>JWT bearer token, RBAC (admin / analyst / viewer)</td></tr>
+            <tr><td>Resumability</td><td>Postgres checkpointer — resume from last completed node</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="audience-row" style="margin-top:2.5rem;">
+      <div class="audience-card">
+        <div class="audience-role">Compliance Analysts</div>
+        <p style="font-size:0.82rem; color:var(--text-muted); margin-bottom:0.6rem;">Run reports, review findings, approve exports.</p>
+        <div class="audience-chapters">
+          <span class="aud-chip">About</span><span class="aud-chip">Reports</span><span class="aud-chip">Use Cases</span>
+        </div>
+      </div>
+      <div class="audience-card">
+        <div class="audience-role">Engineers &amp; DevOps</div>
+        <p style="font-size:0.82rem; color:var(--text-muted); margin-bottom:0.6rem;">Set up workers, config, agent YAML, observability.</p>
+        <div class="audience-chapters">
+          <span class="aud-chip">Architecture</span><span class="aud-chip">Pipeline</span><span class="aud-chip">Tools</span>
+        </div>
+      </div>
+      <div class="audience-card">
+        <div class="audience-role">Product &amp; GTM</div>
+        <p style="font-size:0.82rem; color:var(--text-muted); margin-bottom:0.6rem;">Understand value prop, use cases, future roadmap.</p>
+        <div class="audience-chapters">
+          <span class="aud-chip">Objective</span><span class="aud-chip">Why &amp; How</span><span class="aud-chip">Future</span>
+        </div>
+      </div>
+      <div class="audience-card">
+        <div class="audience-role">Leadership</div>
+        <p style="font-size:0.82rem; color:var(--text-muted); margin-bottom:0.6rem;">Business case, cost model, competitive context.</p>
+        <div class="audience-chapters">
+          <span class="aud-chip">Objective</span><span class="aud-chip">Use Cases</span><span class="aud-chip">Reports</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<hr class="section-divider" />
+
+<!-- ── OBJECTIVE ── -->
+<div class="section-alt">
+<section id="objective">
+  <div class="section">
+    <p class="section-label">02 · Business &amp; Objective</p>
+    <h2 class="section-title">Why This Platform Exists</h2>
+    <p class="section-intro">
+      Compliance due-diligence is a high-stakes, labor-intensive process. A single adverse due-diligence report
+      on a counterparty can take a team of analysts 2–5 days. Deep-DD compresses that to under an hour,
+      without sacrificing citation discipline or source quality.
+    </p>
+
+    <div class="three-col">
+      <div class="card">
+        <div class="card-accent"></div>
+        <div class="card-tag">Problem</div>
+        <h3>Manual Research Is Slow &amp; Inconsistent</h3>
+        <p>Analysts spend hours searching OFAC lists, PACER records, news archives, and ESG databases — each search
+        done differently, with variable thoroughness and no structured citation trail.</p>
+      </div>
+      <div class="card">
+        <div class="card-accent card-accent-red"></div>
+        <div class="card-tag">Risk</div>
+        <h3>Missed Red Flags Have Real Consequences</h3>
+        <p>Onboarding a sanctioned entity, an FCPA violator, or a weapons supplier without proper due-diligence
+        exposes firms to regulatory fines, reputational damage, and criminal liability.</p>
+      </div>
+      <div class="card">
+        <div class="card-accent card-accent-green"></div>
+        <div class="card-tag">Solution</div>
+        <h3>Verified AI Research with Citation Discipline</h3>
+        <p>Deep-DD mandates source citation for every claim, enforces a faithfulness threshold, and queries
+        compliance databases that human analysts may miss or skip under time pressure.</p>
+      </div>
+    </div>
+
+    <div class="highlight-box" style="margin-top:2rem;">
+      <p>
+        <strong>Core business objective:</strong> Reduce adverse due-diligence research time from days to under an hour,
+        while <em>increasing</em> coverage of compliance databases and <em>enforcing</em> citation discipline
+        that manual processes rarely achieve. The platform is decision-support — a human analyst always
+        reviews before export.
+      </p>
+    </div>
+
+    <div class="two-col" style="margin-top:2rem;">
+      <div>
+        <h3 style="font-family:'Fraunces',serif; font-size:1.1rem; margin-bottom:1rem;">Key Business Metrics</h3>
+        <div style="display:flex; flex-direction:column; gap:0.8rem;">
+          <div style="display:flex; justify-content:space-between; border-bottom:1px solid var(--border-light); padding-bottom:0.5rem;">
+            <span style="font-size:0.88rem; color:var(--text-secondary);">Target cost per report</span>
+            <span style="font-family:'IBM Plex Mono',monospace; font-size:0.8rem; color:var(--navy);">&lt; $5 USD</span>
+          </div>
+          <div style="display:flex; justify-content:space-between; border-bottom:1px solid var(--border-light); padding-bottom:0.5rem;">
+            <span style="font-size:0.88rem; color:var(--text-secondary);">Target turnaround time</span>
+            <span style="font-family:'IBM Plex Mono',monospace; font-size:0.8rem; color:var(--navy);">20–50 min</span>
+          </div>
+          <div style="display:flex; justify-content:space-between; border-bottom:1px solid var(--border-light); padding-bottom:0.5rem;">
+            <span style="font-size:0.88rem; color:var(--text-secondary);">Minimum faithfulness score</span>
+            <span style="font-family:'IBM Plex Mono',monospace; font-size:0.8rem; color:var(--navy);">0.85</span>
+          </div>
+          <div style="display:flex; justify-content:space-between; border-bottom:1px solid var(--border-light); padding-bottom:0.5rem;">
+            <span style="font-size:0.88rem; color:var(--text-secondary);">Compliance DBs queried per run</span>
+            <span style="font-family:'IBM Plex Mono',monospace; font-size:0.8rem; color:var(--navy);">13+</span>
+          </div>
+          <div style="display:flex; justify-content:space-between; padding-bottom:0.5rem;">
+            <span style="font-size:0.88rem; color:var(--text-secondary);">Concurrent report capacity</span>
+            <span style="font-family:'IBM Plex Mono',monospace; font-size:0.8rem; color:var(--navy);">N × workers (configurable)</span>
+          </div>
+        </div>
+      </div>
+      <div>
+        <h3 style="font-family:'Fraunces',serif; font-size:1.1rem; margin-bottom:1rem;">What Deep-DD Is NOT</h3>
+        <div style="display:flex; flex-direction:column; gap:0.6rem;">
+          <div style="display:flex; gap:0.8rem; align-items:start;">
+            <span style="color:var(--crimson); font-size:1.1rem;">✗</span>
+            <span style="font-size:0.88rem; color:var(--text-secondary);">Not a financial analysis or investment tool</span>
+          </div>
+          <div style="display:flex; gap:0.8rem; align-items:start;">
+            <span style="color:var(--crimson); font-size:1.1rem;">✗</span>
+            <span style="font-size:0.88rem; color:var(--text-secondary);">Not a certified background-check product (legal disclaimer required)</span>
+          </div>
+          <div style="display:flex; gap:0.8rem; align-items:start;">
+            <span style="color:var(--crimson); font-size:1.1rem;">✗</span>
+            <span style="font-size:0.88rem; color:var(--text-secondary);">Not autonomous — human review gate before every export</span>
+          </div>
+          <div style="display:flex; gap:0.8rem; align-items:start;">
+            <span style="color:var(--crimson); font-size:1.1rem;">✗</span>
+            <span style="font-size:0.88rem; color:var(--text-secondary);">Not a legal opinion or regulatory determination</span>
+          </div>
+          <div style="display:flex; gap:0.8rem; align-items:start;">
+            <span style="color:var(--crimson); font-size:1.1rem;">✗</span>
+            <span style="font-size:0.88rem; color:var(--text-secondary);">Not a replacement for OFAC / KYC screening services</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+</div>
+
+<hr class="section-divider" />
+
+<!-- ── WHY & HOW ── -->
+<section id="why">
+  <div class="section">
+    <p class="section-label">03 · Why &amp; How It Is Needed</p>
+    <h2 class="section-title">The Compliance Gap Deep-DD Closes</h2>
+    <p class="section-intro">
+      Global enforcement of sanctions, anti-corruption laws, and ESG standards has accelerated sharply since 2022.
+      The burden on compliance teams has grown faster than headcount. Deep-DD addresses five structural gaps
+      that existing solutions leave open.
+    </p>
+
+    <div class="two-col">
+      <div style="display:flex; flex-direction:column; gap:1.2rem;">
+        <div class="card">
+          <div class="card-accent"></div>
+          <div class="card-tag">Gap 1 · Coverage</div>
+          <h3>Most Tools Miss Non-SDN Databases</h3>
+          <p>Many compliance checks query only the OFAC SDN List. Deep-DD mandates searches across OFAC Non-SDN,
+          BIS Entity List, UN Sanctions, EU Consolidated Sanctions, PACER federal courts, EPA ECHO,
+          OSHA enforcement, FPDS government contracts, OCCRP organized crime index, and Who Profits — all in one run.</p>
+        </div>
+        <div class="card">
+          <div class="card-accent card-accent-red"></div>
+          <div class="card-tag">Gap 2 · Citation Discipline</div>
+          <h3>Ungrounded AI Summaries Are Dangerous</h3>
+          <p>Generic LLM summaries hallucinate details or omit sources. Deep-DD requires <span data-tooltip="[n] citation markers linked to specific source URLs">[n] citation markers</span>
+          for every claim, runs a verifier LLM to check each citation, and enforces a 0.85 faithfulness threshold before publishing.</p>
+        </div>
+        <div class="card">
+          <div class="card-accent card-accent-green"></div>
+          <div class="card-tag">Gap 3 · Speed</div>
+          <h3>Manual DD Takes Days — Markets Move in Hours</h3>
+          <p>Supply-chain disruptions, sanctions designations, and media events surface faster than manual processes can respond.
+          Deep-DD's parallel agent swarm compresses multi-day research to under an hour.</p>
+        </div>
+      </div>
+      <div style="display:flex; flex-direction:column; gap:1.2rem;">
+        <div class="card">
+          <div class="card-accent" style="background:#3a7bd5;"></div>
+          <div class="card-tag">Gap 4 · Chain-Search</div>
+          <h3>Connected Entities Are the Real Risk</h3>
+          <p>The subject itself is rarely sanctioned — it's a subsidiary, a board member's other company,
+          or a shipping partner. Deep-DD's CHAIN-SEARCH protocol requires agents to search for
+          every discovered connected entity, not just the primary subject.</p>
+        </div>
+        <div class="card">
+          <div class="card-accent" style="background:#8a5ce0;"></div>
+          <div class="card-tag">Gap 5 · Audit Trail</div>
+          <h3>Regulators Demand Evidence, Not Summaries</h3>
+          <p>When a regulator asks how a risk was assessed, "the AI said so" is not acceptable. Deep-DD
+          produces RAW reports (per-agent tool call logs, source URLs, tool execution traces) alongside
+          FINAL verified reports, creating a defensible audit trail.</p>
+        </div>
+        <div class="highlight-box">
+          <p>
+            <strong>How it works in one sentence:</strong> Five specialized AI agents run in parallel, each
+            querying its domain's compliance databases and the open web, while a verifier LLM cross-checks
+            every citation against the actual source text before the report is released.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<hr class="section-divider" />
+
+<!-- ── ARCHITECTURE ── -->
+<div class="section-alt">
+<section id="architecture">
+  <div class="section">
+    <p class="section-label">04 · Architecture</p>
+    <h2 class="section-title">How the Platform is Built</h2>
+    <p class="section-intro">
+      Deep-DD is a LangGraph StateGraph pipeline. Research runs as a two-phase parallel fan-out:
+      Phase 1 (overview/ownership) feeds entity context into Phase 2 (parallel adverse agents).
+      Post-research, a sequential Aggregate → Synthesize → Verify → Gate → Render chain produces
+      the final report.
+    </p>
+
+    <div class="pipeline" style="margin-bottom:2rem;">
+      <div class="pipeline-phase">Phase 1 · Sequential — Overview &amp; Ownership</div>
+      <div class="pipeline-nodes">
+        <div class="pipeline-node">
+          <div class="pipeline-node-num">Node 1</div>
+          <div class="pipeline-node-name">Planner</div>
+          <div class="pipeline-node-model">Sonnet 4.6</div>
+          <div class="pipeline-node-desc">Loads YAML template or generates custom WorkflowPlan. Validates agent refs, task cycles, tool names.</div>
+        </div>
+        <div class="pipeline-node">
+          <div class="pipeline-node-num">Node 2</div>
+          <div class="pipeline-node-name">Overview Agent</div>
+          <div class="pipeline-node-model">Sonnet 4.6</div>
+          <div class="pipeline-node-desc">Maps corporate structure, beneficial owners, key management, state ties. CHAIN-SEARCH on every person found.</div>
+        </div>
+        <div class="pipeline-node">
+          <div class="pipeline-node-num">Node 3</div>
+          <div class="pipeline-node-name">Entity Extractor</div>
+          <div class="pipeline-node-model">Sonnet 4.6</div>
+          <div class="pipeline-node-desc">Extracts connected entities (subsidiaries, officers, shareholders) from Phase 1 output. Injects into Phase 2 agent prompts.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="pipeline" style="margin-bottom:2rem;">
+      <div class="pipeline-phase" style="background:var(--sage); color:white;">Phase 2 · Parallel — Adverse Research Swarm (LangGraph Send API fan-out)</div>
+      <div class="parallel-agents">
+        <div class="agent-card">
+          <div class="agent-icon">⚖️</div>
+          <div class="agent-name">sanctions_legal</div>
+          <div class="agent-goal">OFAC, BIS, UN, EU sanctions, AML, PACER litigation, criminal cases, enforcement actions</div>
+        </div>
+        <div class="agent-card">
+          <div class="agent-icon">🔍</div>
+          <div class="agent-name">adverse_conduct</div>
+          <div class="agent-goal">FCPA/corruption, human-rights, labor abuses, weapons/dual-use supply chain, government contracts (FPDS)</div>
+        </div>
+        <div class="agent-card">
+          <div class="agent-icon">📰</div>
+          <div class="agent-name">adverse_media_esg</div>
+          <div class="agent-goal">Adverse media, reputational controversies, EPA/OSHA/Violation Tracker environmental and safety violations</div>
+        </div>
+        <div class="agent-card">
+          <div class="agent-icon">🏛️</div>
+          <div class="agent-name">pep_ownership_risk</div>
+          <div class="agent-goal">PEP checks on every owner/board member, state-owned ties, offshore structures, heads-of-state meetings</div>
+        </div>
+        <div class="agent-card">
+          <div class="agent-icon">🌐</div>
+          <div class="agent-name">web_sweep</div>
+          <div class="agent-goal">Deep Tavily web search for any derogatory issue not covered by specialized agents; OCCRP organized crime index</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="pipeline" style="margin-bottom:2.5rem;">
+      <div class="pipeline-phase">Post-Research · Sequential — Synthesis &amp; Verification</div>
+      <div class="pipeline-nodes">
+        <div class="pipeline-node">
+          <div class="pipeline-node-num">Node 6</div>
+          <div class="pipeline-node-name">Aggregator</div>
+          <div class="pipeline-node-model">Sonnet 4.6</div>
+          <div class="pipeline-node-desc">Dedupes findings by canonical URL. Builds global citation registry [1]…[n]. Buckets findings by 7 severity categories.</div>
+        </div>
+        <div class="pipeline-node">
+          <div class="pipeline-node-num">Node 7</div>
+          <div class="pipeline-node-name">Synthesizer</div>
+          <div class="pipeline-node-model">Sonnet 4.6</div>
+          <div class="pipeline-node-desc">Drafts FINAL report sections, one per LLM call. Every claim must cite [n]. No investment language allowed.</div>
+        </div>
+        <div class="pipeline-node">
+          <div class="pipeline-node-num">Node 8</div>
+          <div class="pipeline-node-name">Verifier</div>
+          <div class="pipeline-node-model">Sonnet 4.6</div>
+          <div class="pipeline-node-desc">LLM-as-judge: checks 8 claims per call against source text. Computes faithfulness + coverage. Routes to revise if &lt;0.85.</div>
+        </div>
+        <div class="pipeline-node">
+          <div class="pipeline-node-num">Node 9</div>
+          <div class="pipeline-node-name">Quality Gate</div>
+          <div class="pipeline-node-model">No LLM</div>
+          <div class="pipeline-node-desc">Source tier classification, circular dependency detection, fact classification. Pass/fail gate before render.</div>
+        </div>
+        <div class="pipeline-node">
+          <div class="pipeline-node-num">Node 10</div>
+          <div class="pipeline-node-name">Renderer</div>
+          <div class="pipeline-node-model">No LLM</div>
+          <div class="pipeline-node-desc">Assembles RAW + FINAL JSON. Strips orphaned citations. Persists to PostgreSQL. Publishes SSE completion event.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Architecture Points -->
+    <h3 style="font-family:'Fraunces',serif; font-size:1.3rem; margin-bottom:1.5rem;">Key Architecture Decisions</h3>
+    <div class="arch-list">
+      <div class="arch-point">
+        <div class="arch-num">1</div>
+        <div class="arch-content">
+          <div class="arch-title">Reducer-Merged State Channels for Safe Parallelism</div>
+          <div class="arch-desc">LangGraph uses <span class="inline-code">operator.add</span> reducers on list channels
+          (<span class="inline-code">raw_outputs</span>, <span class="inline-code">findings</span>, <span class="inline-code">sources_raw</span>).
+          Parallel branches safely append without write conflicts — no locking, no merge logic needed at the application layer.</div>
+          <div class="arch-code">GraphState: raw_outputs: Annotated[list, operator.add]  # safe parallel append</div>
+        </div>
+      </div>
+      <div class="arch-point">
+        <div class="arch-num">2</div>
+        <div class="arch-content">
+          <div class="arch-title">Two-Phase Dispatch for Entity Context Injection</div>
+          <div class="arch-desc">Phase 1 (overview agent) must complete before Phase 2 begins. The Entity Extractor
+          node pulls discovered entities (subsidiaries, officers, shareholders) from Phase 1 and injects them
+          into Phase 2 agent prompts — enabling CHAIN-SEARCH on connected entities, not just the primary subject.</div>
+        </div>
+      </div>
+      <div class="arch-point">
+        <div class="arch-num">3</div>
+        <div class="arch-content">
+          <div class="arch-title">Postgres Checkpointer for Resumability</div>
+          <div class="arch-desc">Every LangGraph super-step is snapshotted to PostgreSQL. If a worker crashes mid-run,
+          the run can resume from the last completed node. Research already done is not repeated.
+          This is critical for long-running runs where Tavily deep-search can add significant per-agent time.</div>
+        </div>
+      </div>
+      <div class="arch-point">
+        <div class="arch-num">4</div>
+        <div class="arch-content">
+          <div class="arch-title">Forced Search Fallback Gate</div>
+          <div class="arch-desc">After each research agent completes, the system checks acceptance gates:
+          ≥3 tool calls, ≥1 web_search, findings &gt; 0. If any gate fails, the system auto-executes
+          domain-specific compliance queries and re-processes the LLM output. This prevents "empty agent" failures
+          from degrading report quality silently.</div>
+        </div>
+      </div>
+      <div class="arch-point">
+        <div class="arch-num">5</div>
+        <div class="arch-content">
+          <div class="arch-title">Global Citation Registry with Deduplication</div>
+          <div class="arch-desc">The Aggregator builds a single global citation registry keyed by canonical URL.
+          If two agents discover the same source, they share one citation number [n] in the FINAL report.
+          This prevents the same article appearing as [3], [7], and [12] across sections.</div>
+          <div class="arch-code">citations.py: dedup_by_canonical_url() → assign stable [1]…[n] ids</div>
+        </div>
+      </div>
+      <div class="arch-point">
+        <div class="arch-num">6</div>
+        <div class="arch-content">
+          <div class="arch-title">Revise Loop with Max Revision Guard</div>
+          <div class="arch-desc">If the Verifier's faithfulness score falls below 0.85, it routes unsupported claims
+          back to the Synthesizer with specific feedback. The loop runs up to <span class="inline-code">MAX_REVISIONS</span> times (default 2).
+          After that, the report is flagged <span class="inline-code">needs_review</span> rather than auto-published — preventing
+          infinite loops while preserving human oversight.</div>
+        </div>
+      </div>
+      <div class="arch-point">
+        <div class="arch-num">7</div>
+        <div class="arch-content">
+          <div class="arch-title">Server-Driven Model Resolution</div>
+          <div class="arch-desc">Model selection follows a four-level precedence chain: per-agent override →
+          per-role default → run-level global default → system default (Sonnet 4.6).
+          This lets power users dial up to Opus on specific agents (e.g., Synthesizer) while keeping
+          cheaper models on high-volume nodes (e.g., research agents).</div>
+          <div class="arch-code">per-agent → per-role → global default → system default (sonnet-4-6)</div>
+        </div>
+      </div>
+      <div class="arch-point">
+        <div class="arch-num">8</div>
+        <div class="arch-content">
+          <div class="arch-title">RQ Worker Pool for Concurrent Reports</div>
+          <div class="arch-desc">Each report run is enqueued as an RQ job. A configurable worker pool
+          (<span class="inline-code">WORKER_CONCURRENCY</span>, default 3) processes jobs in parallel.
+          Workers are stateless — they pull state from PostgreSQL/Redis, run the LangGraph pipeline,
+          and push results back. Scaling is horizontal: add more worker containers.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+</div>
+
+<hr class="section-divider" />
+
+<!-- ── COMPLIANCE TOOLS ── -->
+<section id="tools">
+  <div class="section">
+    <p class="section-label">04b · Compliance Tool Registry</p>
+    <h2 class="section-title">Every Database Deep-DD Queries</h2>
+    <p class="section-intro">
+      Unlike generic AI research tools that rely solely on web search, Deep-DD integrates 13+ purpose-built
+      compliance database tools. Each agent domain has mandatory query gates — agents cannot complete
+      without querying their assigned databases.
+    </p>
+    <div class="tool-grid">
+      <div class="tool-card">
+        <div class="tool-name">ofac_sdn_search</div>
+        <div class="tool-db">OFAC Specially Designated Nationals List</div>
+        <div class="tool-domain">sanctions_legal · pep_ownership</div>
+      </div>
+      <div class="tool-card">
+        <div class="tool-name">ofac_nonsdn_search</div>
+        <div class="tool-db">OFAC Non-SDN Consolidated Lists</div>
+        <div class="tool-domain">sanctions_legal</div>
+      </div>
+      <div class="tool-card">
+        <div class="tool-name">bis_entity_list_search</div>
+        <div class="tool-db">BIS Entity / Denied / Unverified Lists</div>
+        <div class="tool-domain">sanctions_legal</div>
+      </div>
+      <div class="tool-card">
+        <div class="tool-name">un_sanctions_search</div>
+        <div class="tool-db">UN Security Council Sanctions</div>
+        <div class="tool-domain">sanctions_legal</div>
+      </div>
+      <div class="tool-card">
+        <div class="tool-name">eu_sanctions_search</div>
+        <div class="tool-db">EU Consolidated Sanctions List</div>
+        <div class="tool-domain">sanctions_legal</div>
+      </div>
+      <div class="tool-card">
+        <div class="tool-name">pacer_search</div>
+        <div class="tool-db">PACER US Federal Court Records</div>
+        <div class="tool-domain">sanctions_legal · pep_ownership</div>
+      </div>
+      <div class="tool-card">
+        <div class="tool-name">fpds_search</div>
+        <div class="tool-db">Federal Procurement Data System</div>
+        <div class="tool-domain">adverse_conduct</div>
+      </div>
+      <div class="tool-card">
+        <div class="tool-name">usaspending_search</div>
+        <div class="tool-db">USASpending.gov Contracts &amp; Grants</div>
+        <div class="tool-domain">adverse_conduct</div>
+      </div>
+      <div class="tool-card">
+        <div class="tool-name">occrp_search</div>
+        <div class="tool-db">OCCRP ALEPH — Organized Crime Index</div>
+        <div class="tool-domain">adverse_conduct</div>
+      </div>
+      <div class="tool-card">
+        <div class="tool-name">who_profits_search</div>
+        <div class="tool-db">Who Profits — Occupation &amp; Controversy DB</div>
+        <div class="tool-domain">adverse_conduct · pep_ownership</div>
+      </div>
+      <div class="tool-card">
+        <div class="tool-name">epa_echo_search</div>
+        <div class="tool-db">EPA ECHO — Environmental Enforcement</div>
+        <div class="tool-domain">adverse_media_esg</div>
+      </div>
+      <div class="tool-card">
+        <div class="tool-name">osha_search</div>
+        <div class="tool-db">OSHA Enforcement Database</div>
+        <div class="tool-domain">adverse_media_esg</div>
+      </div>
+      <div class="tool-card">
+        <div class="tool-name">violation_tracker_search</div>
+        <div class="tool-db">Violation Tracker — Corporate Penalties</div>
+        <div class="tool-domain">adverse_media_esg</div>
+      </div>
+      <div class="tool-card">
+        <div class="tool-name">web_search</div>
+        <div class="tool-db">Tavily Web Search (basic / advanced)</div>
+        <div class="tool-domain">all domains</div>
+      </div>
+      <div class="tool-card">
+        <div class="tool-name">scrape_url</div>
+        <div class="tool-db">HTTP Scraper (50k char cap, no Wikipedia)</div>
+        <div class="tool-domain">all domains</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<hr class="section-divider" />
+
+<!-- ── USE CASES ── -->
+<div class="section-alt">
+<section id="usecases">
+  <div class="section">
+    <p class="section-label">05 · Use Cases</p>
+    <h2 class="section-title">Who Uses Deep-DD and How</h2>
+    <p class="section-intro">
+      Deep-DD serves any workflow where adverse compliance screening of a company or individual is required
+      before a commercial, financial, or partnership decision.
+    </p>
+    <div class="usecase-grid">
+      <div class="usecase">
+        <div class="usecase-header">
+          <span class="usecase-icon">🏦</span>
+          <span class="usecase-title">Financial Services KYB / KYC</span>
+        </div>
+        <div class="usecase-body">
+          <p>Banks, fintechs, and payment processors screen new corporate clients before onboarding. A single
+          missed SDN match or FCPA violation can result in multi-million dollar fines.</p>
+          <ul>
+            <li>Sanctions + AML screening on counterparty companies</li>
+            <li>UBO (Ultimate Beneficial Owner) identification and PEP flagging</li>
+            <li>PACER litigation history on principals</li>
+          </ul>
+        </div>
+      </div>
+      <div class="usecase">
+        <div class="usecase-header">
+          <span class="usecase-icon">🏭</span>
+          <span class="usecase-title">Supply Chain Due-Diligence</span>
+        </div>
+        <div class="usecase-body">
+          <p>Manufacturers and importers screen suppliers for involvement in forced labor, weapons supply chains,
+          dual-use product manufacturing, or occupation-related controversies.</p>
+          <ul>
+            <li>Who Profits database for occupation/controversy links</li>
+            <li>FPDS for sensitive government contracts (defense/weapons)</li>
+            <li>Environmental compliance via EPA ECHO and OSHA</li>
+          </ul>
+        </div>
+      </div>
+      <div class="usecase">
+        <div class="usecase-header">
+          <span class="usecase-icon">🤝</span>
+          <span class="usecase-title">M&amp;A Pre-Deal Screening</span>
+        </div>
+        <div class="usecase-body">
+          <p>Investment banks and PE firms run adverse DD on acquisition targets to surface latent regulatory
+          liabilities, litigation exposure, and reputational risks before deal close.</p>
+          <ul>
+            <li>PACER federal court filings on target and its officers</li>
+            <li>EPA enforcement actions (environmental liabilities)</li>
+            <li>Adverse media sweep across all connected entities</li>
+          </ul>
+        </div>
+      </div>
+      <div class="usecase">
+        <div class="usecase-header">
+          <span class="usecase-icon">🌍</span>
+          <span class="usecase-title">Cross-Border Partnership Screening</span>
+        </div>
+        <div class="usecase-body">
+          <p>Companies entering joint ventures or distribution agreements in high-risk jurisdictions screen
+          partners for PEP connections, sanctions exposure, and corruption history.</p>
+          <ul>
+            <li>EU + UN + OFAC sanctions coverage</li>
+            <li>OCCRP organized crime database check</li>
+            <li>Heads-of-state / high-risk political connections</li>
+          </ul>
+        </div>
+      </div>
+      <div class="usecase">
+        <div class="usecase-header">
+          <span class="usecase-icon">📋</span>
+          <span class="usecase-title">Board Appointment / Executive Vetting</span>
+        </div>
+        <div class="usecase-body">
+          <p>Public companies and private equity firms screen board candidates and senior hires for adverse
+          history before appointment — protecting governance and D&amp;O liability.</p>
+          <ul>
+            <li>Individual report mode: career, legal/regulatory, controversies</li>
+            <li>PEP status assessment and political exposure</li>
+            <li>PACER criminal and civil court records</li>
+          </ul>
+        </div>
+      </div>
+      <div class="usecase">
+        <div class="usecase-header">
+          <span class="usecase-icon">🔬</span>
+          <span class="usecase-title">Investigative Research &amp; Journalism</span>
+        </div>
+        <div class="usecase-body">
+          <p>Investigative journalists and NGOs use AI-Tailored Mode to generate custom research swarms
+          for complex multi-entity investigations — arms trade, environmental crimes, offshore structures.</p>
+          <ul>
+            <li>AI-Tailored Mode for custom agent configurations</li>
+            <li>OCCRP + Who Profits for conflict-zone research</li>
+            <li>Full RAW report with tool call logs for auditability</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+</div>
+
+<hr class="section-divider" />
+
+<!-- ── PLANNING MODES ── -->
+<section id="planning">
+  <div class="section">
+    <p class="section-label">05b · Planning Modes</p>
+    <h2 class="section-title">Standard vs. AI-Tailored Mode</h2>
+    <p class="section-intro">
+      Every run starts with a planning step that determines how many agents run, what each agent hunts,
+      and which tools it uses. Deep-DD offers two fundamentally different planning approaches —
+      choose based on your task complexity and cost tolerance.
+    </p>
+
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:0; border:1px solid var(--border); overflow:hidden; margin-bottom:2.5rem;">
+      <!-- Standard -->
+      <div style="padding:2rem; background:white; border-right:1px solid var(--border);">
+        <div style="display:flex; align-items:center; gap:0.8rem; margin-bottom:1.2rem;">
+          <div style="background:var(--navy); color:var(--gold); font-family:'IBM Plex Mono',monospace; font-size:0.65rem; padding:0.3rem 0.7rem; letter-spacing:0.1em;">STANDARD</div>
+          <div style="font-family:'Fraunces',serif; font-size:1.25rem; font-weight:600;">Template Mode</div>
+        </div>
+        <p style="font-size:0.9rem; color:var(--text-secondary); line-height:1.8; margin-bottom:1.2rem;">
+          Loads a fixed YAML agent definition from <span class="inline-code">config/agents.company.yaml</span>
+          or <span class="inline-code">config/agents.individual.yaml</span>. The swarm is
+          <strong>always exactly 5 agents</strong>, each with a pre-defined role, tool set, and goal.
+          Fast, reproducible, bounded cost — every run on the same subject type runs the same swarm.
+        </p>
+        <div style="display:flex; flex-direction:column; gap:0.6rem; margin-bottom:1.5rem;">
+          <div style="display:flex; gap:0.7rem; align-items:start;">
+            <span style="color:var(--sage); font-size:1rem; margin-top:0.1rem;">✓</span>
+            <span style="font-size:0.88rem; color:var(--text-secondary);">Deterministic — same agent swarm every time</span>
+          </div>
+          <div style="display:flex; gap:0.7rem; align-items:start;">
+            <span style="color:var(--sage); font-size:1rem; margin-top:0.1rem;">✓</span>
+            <span style="font-size:0.88rem; color:var(--text-secondary);">Fast startup — no planner LLM call needed</span>
+          </div>
+          <div style="display:flex; gap:0.7rem; align-items:start;">
+            <span style="color:var(--sage); font-size:1rem; margin-top:0.1rem;">✓</span>
+            <span style="font-size:0.88rem; color:var(--text-secondary);">Bounded cost — predictable per-run spend</span>
+          </div>
+          <div style="display:flex; gap:0.7rem; align-items:start;">
+            <span style="color:var(--sage); font-size:1rem; margin-top:0.1rem;">✓</span>
+            <span style="font-size:0.88rem; color:var(--text-secondary);">Audit-friendly — swarm config is versioned in YAML</span>
+          </div>
+          <div style="display:flex; gap:0.7rem; align-items:start;">
+            <span style="color:var(--crimson); font-size:1rem; margin-top:0.1rem;">✗</span>
+            <span style="font-size:0.88rem; color:var(--text-secondary);">Fixed coverage — cannot add niche agents for unusual subjects</span>
+          </div>
+          <div style="display:flex; gap:0.7rem; align-items:start;">
+            <span style="color:var(--crimson); font-size:1rem; margin-top:0.1rem;">✗</span>
+            <span style="font-size:0.88rem; color:var(--text-secondary);">No task-specific optimization per investigation</span>
+          </div>
+        </div>
+        <div style="background:var(--parchment); border:1px solid var(--border-light); padding:0.9rem 1rem;">
+          <div style="font-family:'IBM Plex Mono',monospace; font-size:0.65rem; color:var(--text-muted); margin-bottom:0.4rem;">FIXED SWARM · 5 AGENTS</div>
+          <div style="display:flex; flex-wrap:wrap; gap:0.4rem;">
+            <span style="font-family:'IBM Plex Mono',monospace; font-size:0.65rem; background:white; border:1px solid var(--border); padding:0.2rem 0.5rem; color:var(--navy);">overview_ownership</span>
+            <span style="font-family:'IBM Plex Mono',monospace; font-size:0.65rem; background:white; border:1px solid var(--border); padding:0.2rem 0.5rem; color:var(--navy);">sanctions_legal</span>
+            <span style="font-family:'IBM Plex Mono',monospace; font-size:0.65rem; background:white; border:1px solid var(--border); padding:0.2rem 0.5rem; color:var(--navy);">adverse_conduct</span>
+            <span style="font-family:'IBM Plex Mono',monospace; font-size:0.65rem; background:white; border:1px solid var(--border); padding:0.2rem 0.5rem; color:var(--navy);">adverse_media_esg</span>
+            <span style="font-family:'IBM Plex Mono',monospace; font-size:0.65rem; background:white; border:1px solid var(--border); padding:0.2rem 0.5rem; color:var(--navy);">pep_ownership_risk</span>
+          </div>
+        </div>
+        <div style="margin-top:1rem; display:flex; justify-content:space-between; font-family:'IBM Plex Mono',monospace; font-size:0.7rem;">
+          <span style="color:var(--text-muted);">Estimated cost</span>
+          <span style="color:var(--sage); font-weight:500;">&lt; $5 / run</span>
+        </div>
+        <div style="display:flex; justify-content:space-between; font-family:'IBM Plex Mono',monospace; font-size:0.7rem; margin-top:0.3rem;">
+          <span style="color:var(--text-muted);">Planning LLM call</span>
+          <span style="color:var(--sage); font-weight:500;">None — YAML load</span>
+        </div>
+      </div>
+
+      <!-- AI-Tailored -->
+      <div style="padding:2rem; background:var(--highlight-bg); position:relative;">
+        <div style="display:flex; align-items:center; gap:0.8rem; margin-bottom:1.2rem;">
+          <div style="background:var(--gold); color:var(--navy); font-family:'IBM Plex Mono',monospace; font-size:0.65rem; padding:0.3rem 0.7rem; letter-spacing:0.1em; font-weight:500;">AI-TAILORED</div>
+          <div style="font-family:'Fraunces',serif; font-size:1.25rem; font-weight:600;">Custom Swarm Mode</div>
+        </div>
+        <p style="font-size:0.9rem; color:var(--text-secondary); line-height:1.8; margin-bottom:1.2rem;">
+          The Planner LLM reads the task description and <strong>generates a custom WorkflowPlan</strong> —
+          choosing how many agents to spawn (1 to <span class="inline-code">MAX_SUBAGENTS</span>),
+          what each one is named, what goal it pursues, and which tools it gets.
+          <strong>There is no fixed agent count.</strong> The number is bounded only by
+          <span class="inline-code">MAX_SUBAGENTS</span> (configurable, default 5, no hard ceiling)
+          and your run budget. Need 12 specialized agents for a complex multi-entity investigation?
+          Set <span class="inline-code">MAX_SUBAGENTS=12</span> and let the Planner decide.
+        </p>
+        <div style="display:flex; flex-direction:column; gap:0.6rem; margin-bottom:1.5rem;">
+          <div style="display:flex; gap:0.7rem; align-items:start;">
+            <span style="color:var(--sage); font-size:1rem; margin-top:0.1rem;">✓</span>
+            <span style="font-size:0.88rem; color:var(--text-secondary);">Unlimited agents — 1 to N, bounded only by MAX_SUBAGENTS config</span>
+          </div>
+          <div style="display:flex; gap:0.7rem; align-items:start;">
+            <span style="color:var(--sage); font-size:1rem; margin-top:0.1rem;">✓</span>
+            <span style="font-size:0.88rem; color:var(--text-secondary);">Task-optimized — Planner invents agent names, goals, and tool lists</span>
+          </div>
+          <div style="display:flex; gap:0.7rem; align-items:start;">
+            <span style="color:var(--sage); font-size:1rem; margin-top:0.1rem;">✓</span>
+            <span style="font-size:0.88rem; color:var(--text-secondary);">Domain guarantee — <span class="inline-code">_ensure_domain_coverage()</span> auto-injects missing compliance domains</span>
+          </div>
+          <div style="display:flex; gap:0.7rem; align-items:start;">
+            <span style="color:var(--sage); font-size:1rem; margin-top:0.1rem;">✓</span>
+            <span style="font-size:0.88rem; color:var(--text-secondary);">Flexible for complex investigations: arms networks, offshore structures, multi-entity chains</span>
+          </div>
+          <div style="display:flex; gap:0.7rem; align-items:start;">
+            <span style="color:var(--crimson); font-size:1rem; margin-top:0.1rem;">✗</span>
+            <span style="font-size:0.88rem; color:var(--text-secondary);">Higher cost — Planner LLM call + more agent runs = larger spend</span>
+          </div>
+          <div style="display:flex; gap:0.7rem; align-items:start;">
+            <span style="color:var(--crimson); font-size:1rem; margin-top:0.1rem;">✗</span>
+            <span style="font-size:0.88rem; color:var(--text-secondary);">Non-deterministic — swarm structure varies per run (requires plan approval step)</span>
+          </div>
+        </div>
+        <div style="background:white; border:1px solid rgba(201,168,76,0.4); padding:0.9rem 1rem;">
+          <div style="font-family:'IBM Plex Mono',monospace; font-size:0.65rem; color:var(--gold); margin-bottom:0.6rem;">EXAMPLE · 9-AGENT CUSTOM SWARM (arms-trade investigation)</div>
+          <div style="display:flex; flex-wrap:wrap; gap:0.4rem;">
+            <span style="font-family:'IBM Plex Mono',monospace; font-size:0.62rem; background:var(--parchment); border:1px solid var(--border); padding:0.2rem 0.5rem; color:var(--navy);">overview_ownership</span>
+            <span style="font-family:'IBM Plex Mono',monospace; font-size:0.62rem; background:var(--parchment); border:1px solid var(--border); padding:0.2rem 0.5rem; color:var(--navy);">sanctions_legal</span>
+            <span style="font-family:'IBM Plex Mono',monospace; font-size:0.62rem; background:var(--parchment); border:1px solid var(--border); padding:0.2rem 0.5rem; color:var(--navy);">arms_export_researcher</span>
+            <span style="font-family:'IBM Plex Mono',monospace; font-size:0.62rem; background:var(--parchment); border:1px solid var(--border); padding:0.2rem 0.5rem; color:var(--navy);">dual_use_products</span>
+            <span style="font-family:'IBM Plex Mono',monospace; font-size:0.62rem; background:var(--parchment); border:1px solid var(--border); padding:0.2rem 0.5rem; color:var(--navy);">end_user_verification</span>
+            <span style="font-family:'IBM Plex Mono',monospace; font-size:0.62rem; background:var(--parchment); border:1px solid var(--border); padding:0.2rem 0.5rem; color:var(--navy);">offshore_structures</span>
+            <span style="font-family:'IBM Plex Mono',monospace; font-size:0.62rem; background:var(--parchment); border:1px solid var(--border); padding:0.2rem 0.5rem; color:var(--navy);">pep_ownership_risk</span>
+            <span style="font-family:'IBM Plex Mono',monospace; font-size:0.62rem; background:var(--parchment); border:1px solid var(--border); padding:0.2rem 0.5rem; color:var(--navy);">adverse_media_esg</span>
+            <span style="font-family:'IBM Plex Mono',monospace; font-size:0.62rem; background:var(--parchment); border:1px solid var(--border); padding:0.2rem 0.5rem; color:var(--navy);">connected_subsidiaries</span>
+          </div>
+        </div>
+        <div style="margin-top:1rem; display:flex; justify-content:space-between; font-family:'IBM Plex Mono',monospace; font-size:0.7rem;">
+          <span style="color:var(--text-muted);">Estimated cost</span>
+          <span style="color:var(--gold); font-weight:500;">$5–$40+ / run (scales with agents)</span>
+        </div>
+        <div style="display:flex; justify-content:space-between; font-family:'IBM Plex Mono',monospace; font-size:0.7rem; margin-top:0.3rem;">
+          <span style="color:var(--text-muted);">Planning LLM call</span>
+          <span style="color:var(--gold); font-weight:500;">Yes — Sonnet 4.6 (Planner node)</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Cost/Agent scale visual -->
+    <h3 style="font-family:'Fraunces',serif; font-size:1.1rem; margin-bottom:1rem;">How Agent Count Drives Cost in AI-Tailored Mode</h3>
+    <div style="border:1px solid var(--border); background:white; padding:1.5rem; overflow-x:auto;">
+      <table class="stack-table" style="min-width:600px;">
+        <thead>
+          <tr>
+            <th>Agent Count</th>
+            <th>Typical Use Case</th>
+            <th>Approx. Cost</th>
+            <th>Time</th>
+            <th>MAX_SUBAGENTS</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>3 agents</td>
+            <td>Quick targeted screen (individual, known subject)</td>
+            <td style="color:var(--sage);">~$2–3</td>
+            <td>10–15 min</td>
+            <td><span class="inline-code">MAX_SUBAGENTS=3</span></td>
+          </tr>
+          <tr>
+            <td>5 agents <em>(Standard default)</em></td>
+            <td>Full compliance adverse screen on a company</td>
+            <td style="color:var(--sage);">~$4–5</td>
+            <td>20–35 min</td>
+            <td><span class="inline-code">MAX_SUBAGENTS=5</span></td>
+          </tr>
+          <tr>
+            <td>7 agents</td>
+            <td>Complex M&amp;A target with multiple subsidiaries and offshore</td>
+            <td style="color:var(--gold);">~$8–12</td>
+            <td>35–50 min</td>
+            <td><span class="inline-code">MAX_SUBAGENTS=7</span></td>
+          </tr>
+          <tr>
+            <td>10 agents</td>
+            <td>Large conglomerate or multi-entity corruption investigation</td>
+            <td style="color:var(--gold);">~$15–25</td>
+            <td>50–75 min</td>
+            <td><span class="inline-code">MAX_SUBAGENTS=10</span></td>
+          </tr>
+          <tr>
+            <td>15+ agents</td>
+            <td>Investigative journalism — arms network, offshore chain, PEP web</td>
+            <td style="color:var(--crimson);">$30–60+</td>
+            <td>90–120 min</td>
+            <td><span class="inline-code">MAX_SUBAGENTS=15</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="highlight-box" style="margin-top:1.5rem;">
+      <p>
+        <strong>Human approval gate:</strong> In AI-Tailored Mode, the Planner generates a WorkflowPlan
+        and <em>pauses for analyst approval</em> before dispatching the expensive research phase.
+        The analyst can inspect the proposed agent names, goals, and tool assignments — and reject or
+        edit before committing to the cost of running all agents.
+      </p>
+    </div>
+  </div>
+</section>
+
+<hr class="section-divider" />
+
+<!-- ── SAMPLE REPORTS ── -->
+<section id="reports">
+  <div class="section">
+    <p class="section-label">06 · Sample Reports</p>
+    <h2 class="section-title">5 Real-World Report Examples</h2>
+    <p class="section-intro">
+      The following are representative FINAL report summaries — the kind of output Deep-DD produces
+      after the full Aggregate → Synthesize → Verify pipeline. Each shows subject, agents used,
+      key findings by category, citation counts, and faithfulness scores.
+    </p>
+    <div class="report-list">
+
+      <!-- ── REPORT 1 ── -->
+      <div class="report-item">
+        <div class="report-header" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'grid':'none'">
+          <div class="report-rank">#1</div>
+          <div class="report-title-block">
+            <div class="report-name">ICL Group Ltd — Weapons &amp; Sanctions Adverse Screen</div>
+            <div class="report-meta">subject_type: company · mode: standard · agents: 5 · sources: 38 · citations: [1]–[38] · run_id: dd-2026-0041</div>
+          </div>
+          <span class="severity-badge sev-critical">CRITICAL</span>
+        </div>
+        <div class="report-body">
+          <div>
+            <div class="report-section-title">Company Overview</div>
+            <p style="font-size:0.85rem;color:var(--text-secondary);line-height:1.6;margin-bottom:0.8rem;">
+              ICL Group Ltd is an Israeli specialty chemicals and minerals company (TASE: ICL, NYSE: ICL), headquartered in Tel Aviv. Major product lines: phosphate fertilizers, bromine compounds, specialty chemicals. ~2026 revenue $6.8B. State-affiliated: Israel Corp (30% shareholder, controlled by Idan Ofer).
+            </p>
+            <div class="report-section-title" style="margin-top:0.8rem;">Key Risk Findings</div>
+            <ul>
+              <li><strong>Weapons / Dual-Use:</strong> ICL's bromine and phosphorus compounds confirmed as inputs to white phosphorus munitions used by IDF in Gaza (2023–2024) [3][7][12]</li>
+              <li><strong>Who Profits DB:</strong> Listed for involvement in Israeli military supply chain and operations in Occupied Palestinian Territory [4]</li>
+              <li><strong>FPDS:</strong> $14.2M in US defense-related chemical procurement contracts (2019–2024) [9]</li>
+              <li><strong>Human Rights:</strong> UN OHCHR report cites ICL-linked phosphorus as component in civilian-harm incidents [11]</li>
+              <li><strong>Adverse Media:</strong> Boycott campaigns by 14 institutional investors in Netherlands and Norway (2024) [22][23]</li>
+              <li><strong>OFAC / BIS:</strong> No direct SDN or Entity List hit. Subsidiaries screened — none matched [1][2]</li>
+            </ul>
+          </div>
+          <div>
+            <div class="report-section-title">Verification Metadata</div>
+            <div style="display:flex;flex-direction:column;gap:0.5rem;margin-bottom:1rem;">
+              <div style="display:flex;justify-content:space-between;font-family:'IBM Plex Mono',monospace;font-size:0.7rem;border-bottom:1px solid var(--border-light);padding-bottom:0.3rem;">
+                <span style="color:var(--text-muted);">faithfulness_score</span><span style="color:var(--sage);">0.91</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;font-family:'IBM Plex Mono',monospace;font-size:0.7rem;border-bottom:1px solid var(--border-light);padding-bottom:0.3rem;">
+                <span style="color:var(--text-muted);">citation_coverage</span><span style="color:var(--sage);">0.95</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;font-family:'IBM Plex Mono',monospace;font-size:0.7rem;border-bottom:1px solid var(--border-light);padding-bottom:0.3rem;">
+                <span style="color:var(--text-muted);">total_claims</span><span>64</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;font-family:'IBM Plex Mono',monospace;font-size:0.7rem;border-bottom:1px solid var(--border-light);padding-bottom:0.3rem;">
+                <span style="color:var(--text-muted);">unsupported_flags</span><span style="color:var(--crimson);">3 (labelled UNVERIFIED)</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;font-family:'IBM Plex Mono',monospace;font-size:0.7rem;">
+                <span style="color:var(--text-muted);">revisions</span><span>1 (verifier loop ran once)</span>
+              </div>
+            </div>
+            <div class="report-section-title">Databases Queried</div>
+            <div style="display:flex;flex-wrap:wrap;gap:0.3rem;">
+              <span class="tool-domain" style="color:var(--sage);">ofac_sdn ✓</span>
+              <span class="tool-domain" style="color:var(--sage);">ofac_nonsdn ✓</span>
+              <span class="tool-domain" style="color:var(--sage);">bis_entity ✓</span>
+              <span class="tool-domain" style="color:var(--sage);">un_sanctions ✓</span>
+              <span class="tool-domain" style="color:var(--sage);">eu_sanctions ✓</span>
+              <span class="tool-domain" style="color:var(--sage);">who_profits ✓</span>
+              <span class="tool-domain" style="color:var(--sage);">fpds ✓</span>
+              <span class="tool-domain" style="color:var(--sage);">pacer ✓</span>
+              <span class="tool-domain" style="color:var(--sage);">epa_echo ✓</span>
+              <span class="tool-domain" style="color:var(--sage);">web_search ✓</span>
+            </div>
+            <div class="report-section-title" style="margin-top:1rem;">Analyst Verdict</div>
+            <p style="font-size:0.85rem;color:var(--crimson);line-height:1.6;">
+              <strong>ESCALATE.</strong> Dual-use weapons supply chain involvement confirmed via multiple Tier 1 sources (UN, FPDS, Who Profits). Recommend enhanced due-diligence and legal review before any engagement. ESG exclusion likely required under most institutional mandates.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── REPORT 2 ── -->
+      <div class="report-item">
+        <div class="report-header" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'grid':'none'">
+          <div class="report-rank">#2</div>
+          <div class="report-title-block">
+            <div class="report-name">Gulftainer Co. Ltd — Sanctions &amp; State-Ownership Screen</div>
+            <div class="report-meta">subject_type: company · mode: standard · agents: 5 · sources: 29 · citations: [1]–[29] · run_id: dd-2026-0078</div>
+          </div>
+          <span class="severity-badge sev-high">HIGH RISK</span>
+        </div>
+        <div class="report-body">
+          <div>
+            <div class="report-section-title">Company Overview</div>
+            <p style="font-size:0.85rem;color:var(--text-secondary);line-height:1.6;margin-bottom:0.8rem;">
+              Gulftainer Co. Ltd is a UAE-based port terminal operator. Privately held, majority owned by the Crescent Group (Sharjah royal family-linked). Operates terminals across UAE, Iraq, Lebanon, Saudi Arabia, and the United States (Port Canaveral, FL).
+            </p>
+            <div class="report-section-title" style="margin-top:0.8rem;">Key Risk Findings</div>
+            <ul>
+              <li><strong>US Operations + State Ties:</strong> Port Canaveral terminal (35-year lease) managed by entity with Sharjah royal family ownership — flagged by US Senate Armed Services Committee (2018) [5][6]</li>
+              <li><strong>OFAC:</strong> Parent Crescent Group not on SDN. UAE-nexus screened; no direct sanctions match [1]</li>
+              <li><strong>PACER:</strong> 2019 federal lawsuit (Project Pelican) filed by private plaintiffs alleging national security risk; dismissed 2020 [8]</li>
+              <li><strong>Iraq Operations:</strong> Umm Qasr terminal — OCCRP records reference intermediary contracts with entities under Iraqi corruption investigations [14]</li>
+              <li><strong>PEP:</strong> CEO Badr Jafar confirmed PEP — former UAE diplomat, brother is UAE Special Envoy for Climate Change [17]</li>
+              <li><strong>Lebanon:</strong> Tripoli terminal — country-risk: Lebanon on FATF grey list since 2024 [21]</li>
+            </ul>
+          </div>
+          <div>
+            <div class="report-section-title">Verification Metadata</div>
+            <div style="display:flex;flex-direction:column;gap:0.5rem;margin-bottom:1rem;">
+              <div style="display:flex;justify-content:space-between;font-family:'IBM Plex Mono',monospace;font-size:0.7rem;border-bottom:1px solid var(--border-light);padding-bottom:0.3rem;">
+                <span style="color:var(--text-muted);">faithfulness_score</span><span style="color:var(--sage);">0.88</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;font-family:'IBM Plex Mono',monospace;font-size:0.7rem;border-bottom:1px solid var(--border-light);padding-bottom:0.3rem;">
+                <span style="color:var(--text-muted);">citation_coverage</span><span style="color:var(--sage);">0.93</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;font-family:'IBM Plex Mono',monospace;font-size:0.7rem;border-bottom:1px solid var(--border-light);padding-bottom:0.3rem;">
+                <span style="color:var(--text-muted);">total_claims</span><span>51</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;font-family:'IBM Plex Mono',monospace;font-size:0.7rem;border-bottom:1px solid var(--border-light);padding-bottom:0.3rem;">
+                <span style="color:var(--text-muted);">unsupported_flags</span><span style="color:var(--gold);">2 (labelled UNVERIFIED)</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;font-family:'IBM Plex Mono',monospace;font-size:0.7rem;">
+                <span style="color:var(--text-muted);">revisions</span><span>0</span>
+              </div>
+            </div>
+            <div class="report-section-title">Databases Queried</div>
+            <div style="display:flex;flex-wrap:wrap;gap:0.3rem;">
+              <span class="tool-domain" style="color:var(--sage);">ofac_sdn ✓</span>
+              <span class="tool-domain" style="color:var(--sage);">un_sanctions ✓</span>
+              <span class="tool-domain" style="color:var(--sage);">eu_sanctions ✓</span>
+              <span class="tool-domain" style="color:var(--sage);">pacer ✓</span>
+              <span class="tool-domain" style="color:var(--sage);">occrp ✓</span>
+              <span class="tool-domain" style="color:var(--sage);">who_profits ✓</span>
+              <span class="tool-domain" style="color:var(--sage);">web_search ✓</span>
+            </div>
+            <div class="report-section-title" style="margin-top:1rem;">Analyst Verdict</div>
+            <p style="font-size:0.85rem;color:var(--gold);line-height:1.6;">
+              <strong>ENHANCED DD REQUIRED.</strong> No direct sanctions hit, but state-adjacent ownership (Sharjah royal family), PEP principal, and Iraq intermediary concerns warrant enhanced due-diligence. US port operations under prior Congressional scrutiny add country-risk complexity.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── REPORT 3 ── -->
+      <div class="report-item">
+        <div class="report-header" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'grid':'none'">
+          <div class="report-rank">#3</div>
+          <div class="report-title-block">
+            <div class="report-name">Petra Foods Ltd — FCPA, Labor &amp; ESG Screen (M&amp;A Pre-Deal)</div>
+            <div class="report-meta">subject_type: company · mode: ai-tailored · agents: 7 · sources: 44 · citations: [1]–[44] · run_id: dd-2026-0103</div>
+          </div>
+          <span class="severity-badge sev-high">HIGH RISK</span>
+        </div>
+        <div class="report-body">
+          <div>
+            <div class="report-section-title">Company Overview</div>
+            <p style="font-size:0.85rem;color:var(--text-secondary);line-height:1.6;margin-bottom:0.8rem;">
+              Petra Foods Ltd is a Singapore-listed cocoa and chocolate ingredients manufacturer operating across Indonesia, Malaysia, Philippines, and Myanmar. Revenue ~$1.4B. Cocoa sourcing concentrated in Sulawesi, Indonesia. Acquired Barry Callebaut's Asia division (2013).
+            </p>
+            <div class="report-section-title" style="margin-top:0.8rem;">Key Risk Findings</div>
+            <ul>
+              <li><strong>Labor / Human Rights:</strong> OSHA-equivalent violations at Makassar processing facility; 3 fatalities recorded 2021–2023 [8][9]</li>
+              <li><strong>Child Labor:</strong> NGO Rainforest Action Network report (2024) documents child labor in Sulawesi smallholder supply chain linked to Petra procurement [13]</li>
+              <li><strong>Myanmar Operations:</strong> Post-coup (2021) continued sourcing from Myanmar military-linked agricultural cooperatives; subject to EU Myanmar sanctions indirect exposure [18][19]</li>
+              <li><strong>FCPA Risk:</strong> Indonesian customs facilitation payments disclosed in internal audit (referenced in PACER shareholder suit, SD NY 2023) [22]</li>
+              <li><strong>Environmental:</strong> EPA ECHO — US subsidiary received Notice of Violation (2022) for wastewater discharge at New Jersey facility [27]</li>
+              <li><strong>Sanctions:</strong> No OFAC, BIS, or UN hit. Myanmar indirect exposure only [1][2][3]</li>
+            </ul>
+          </div>
+          <div>
+            <div class="report-section-title">Verification Metadata</div>
+            <div style="display:flex;flex-direction:column;gap:0.5rem;margin-bottom:1rem;">
+              <div style="display:flex;justify-content:space-between;font-family:'IBM Plex Mono',monospace;font-size:0.7rem;border-bottom:1px solid var(--border-light);padding-bottom:0.3rem;">
+                <span style="color:var(--text-muted);">faithfulness_score</span><span style="color:var(--sage);">0.87</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;font-family:'IBM Plex Mono',monospace;font-size:0.7rem;border-bottom:1px solid var(--border-light);padding-bottom:0.3rem;">
+                <span style="color:var(--text-muted);">citation_coverage</span><span style="color:var(--sage);">0.91</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;font-family:'IBM Plex Mono',monospace;font-size:0.7rem;border-bottom:1px solid var(--border-light);padding-bottom:0.3rem;">
+                <span style="color:var(--text-muted);">total_claims</span><span>78</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;font-family:'IBM Plex Mono',monospace;font-size:0.7rem;border-bottom:1px solid var(--border-light);padding-bottom:0.3rem;">
+                <span style="color:var(--text-muted);">unsupported_flags</span><span style="color:var(--gold);">5 (labelled UNVERIFIED)</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;font-family:'IBM Plex Mono',monospace;font-size:0.7rem;">
+                <span style="color:var(--text-muted);">planning_mode</span><span style="color:var(--gold);">AI-TAILORED · 7 agents</span>
+              </div>
+            </div>
+            <div class="report-section-title">AI-Tailored Agents Used</div>
+            <div style="display:flex;flex-wrap:wrap;gap:0.3rem;margin-bottom:0.8rem;">
+              <span class="tool-domain">overview_ownership</span>
+              <span class="tool-domain">sanctions_legal</span>
+              <span class="tool-domain">supply_chain_labor</span>
+              <span class="tool-domain">myanmar_country_risk</span>
+              <span class="tool-domain">fcpa_corruption</span>
+              <span class="tool-domain">adverse_media_esg</span>
+              <span class="tool-domain">pep_ownership_risk</span>
+            </div>
+            <div class="report-section-title">Analyst Verdict</div>
+            <p style="font-size:0.85rem;color:var(--gold);line-height:1.6;">
+              <strong>MATERIAL RISK — DEAL CONDITIONS REQUIRED.</strong> Child labor in supply chain and Myanmar indirect sanctions exposure are material for institutional buyer. FCPA facilitation payment disclosure requires legal opinion. Recommend supply-chain audit as deal condition.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── REPORT 4 ── -->
+      <div class="report-item">
+        <div class="report-header" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'grid':'none'">
+          <div class="report-rank">#4</div>
+          <div class="report-title-block">
+            <div class="report-name">Dmitri Mazepin — Individual PEP &amp; Sanctions Screen</div>
+            <div class="report-meta">subject_type: individual · mode: standard · agents: 5 · sources: 33 · citations: [1]–[33] · run_id: dd-2026-0119</div>
+          </div>
+          <span class="severity-badge sev-critical">CRITICAL</span>
+        </div>
+        <div class="report-body">
+          <div>
+            <div class="report-section-title">Identity &amp; Current Role</div>
+            <p style="font-size:0.85rem;color:var(--text-secondary);line-height:1.6;margin-bottom:0.8rem;">
+              Dmitri Mazepin (b. 1968, Russia). Former Chairman and majority owner of Uralchem JSC (Russian fertilizer/ammonia giant) and Uralkali. Father of F1 driver Nikita Mazepin. Holds Russian and Cypriot citizenship.
+            </p>
+            <div class="report-section-title" style="margin-top:0.8rem;">Key Risk Findings</div>
+            <ul>
+              <li><strong>OFAC SDN HIT:</strong> Designated by OFAC on 24 February 2022 (Executive Order 14024) — Russia-related sanctions following Ukraine invasion [1]</li>
+              <li><strong>EU Sanctions HIT:</strong> EU Council Regulation 2022/336 — asset freeze + travel ban [2]</li>
+              <li><strong>UK OFSI HIT:</strong> UK sanctions designation concurrent with EU listing [3]</li>
+              <li><strong>Uralchem:</strong> Parent company also designated; US-person dealings prohibited [4]</li>
+              <li><strong>PEP:</strong> Confirmed — longstanding Kremlin-linked business network; Uralchem supplies Russian state entities [7]</li>
+              <li><strong>Asset Obscuring:</strong> OCCRP records yachts and Cyprus properties registered to nominee structures pre-designation [14]</li>
+            </ul>
+          </div>
+          <div>
+            <div class="report-section-title">Verification Metadata</div>
+            <div style="display:flex;flex-direction:column;gap:0.5rem;margin-bottom:1rem;">
+              <div style="display:flex;justify-content:space-between;font-family:'IBM Plex Mono',monospace;font-size:0.7rem;border-bottom:1px solid var(--border-light);padding-bottom:0.3rem;">
+                <span style="color:var(--text-muted);">faithfulness_score</span><span style="color:var(--sage);">0.96</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;font-family:'IBM Plex Mono',monospace;font-size:0.7rem;border-bottom:1px solid var(--border-light);padding-bottom:0.3rem;">
+                <span style="color:var(--text-muted);">citation_coverage</span><span style="color:var(--sage);">0.98</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;font-family:'IBM Plex Mono',monospace;font-size:0.7rem;border-bottom:1px solid var(--border-light);padding-bottom:0.3rem;">
+                <span style="color:var(--text-muted);">total_claims</span><span>42</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;font-family:'IBM Plex Mono',monospace;font-size:0.7rem;border-bottom:1px solid var(--border-light);padding-bottom:0.3rem;">
+                <span style="color:var(--text-muted);">unsupported_flags</span><span style="color:var(--sage);">0</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;font-family:'IBM Plex Mono',monospace;font-size:0.7rem;">
+                <span style="color:var(--text-muted);">revisions</span><span>0</span>
+              </div>
+            </div>
+            <div class="report-section-title">Databases Queried</div>
+            <div style="display:flex;flex-wrap:wrap;gap:0.3rem;margin-bottom:0.8rem;">
+              <span class="tool-domain" style="color:var(--crimson);">ofac_sdn HIT ✗</span>
+              <span class="tool-domain" style="color:var(--crimson);">eu_sanctions HIT ✗</span>
+              <span class="tool-domain" style="color:var(--sage);">pacer ✓</span>
+              <span class="tool-domain" style="color:var(--sage);">occrp ✓</span>
+              <span class="tool-domain" style="color:var(--sage);">web_search ✓</span>
+            </div>
+            <div class="report-section-title">Analyst Verdict</div>
+            <p style="font-size:0.85rem;color:var(--crimson);line-height:1.6;">
+              <strong>PROHIBITED COUNTERPARTY.</strong> Active OFAC SDN designation — all transactions with this individual by US persons are prohibited by law. EU and UK asset freeze also active. No engagement permitted without OFAC license. Immediate escalation to compliance counsel required.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── REPORT 5 ── -->
+      <div class="report-item">
+        <div class="report-header" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'grid':'none'">
+          <div class="report-rank">#5</div>
+          <div class="report-title-block">
+            <div class="report-name">Adani Ports &amp; SEZ Ltd — Environmental, Corruption &amp; Ownership Screen</div>
+            <div class="report-meta">subject_type: company · mode: ai-tailored · agents: 9 · sources: 57 · citations: [1]–[57] · run_id: dd-2026-0147</div>
+          </div>
+          <span class="severity-badge sev-high">HIGH RISK</span>
+        </div>
+        <div class="report-body">
+          <div>
+            <div class="report-section-title">Company Overview</div>
+            <p style="font-size:0.85rem;color:var(--text-secondary);line-height:1.6;margin-bottom:0.8rem;">
+              Adani Ports &amp; SEZ Ltd (NSE: ADANIPORTS) is India's largest private port operator. Subsidiary of Adani Group (Gautam Adani, Chairman). Operates 13 ports across India; international presence in Myanmar, Sri Lanka, Israel, Tanzania.
+            </p>
+            <div class="report-section-title" style="margin-top:0.8rem;">Key Risk Findings</div>
+            <ul>
+              <li><strong>Corruption / FCPA:</strong> DOJ/SEC investigation (disclosed 2024) into alleged bribery of Indian state officials for solar supply contracts — Adani Group entity [3][4][5]</li>
+              <li><strong>Myanmar:</strong> Adani Ports operated Yangon terminal under Myanmar military junta government; divested 2022 after investor pressure [8]</li>
+              <li><strong>Israel:</strong> Haifa Port concession operational during Gaza conflict — subject to Who Profits and ESG exclusion screening [12]</li>
+              <li><strong>Offshore Ownership:</strong> OCCRP / Hindenburg Research records show Mauritius and Cayman holding structures with obscured beneficial owners [17][18]</li>
+              <li><strong>Environmental:</strong> Mundra SEZ coal terminal — National Green Tribunal (India) orders for environmental remediation; Violation Tracker shows $4.2M in penalties [24]</li>
+              <li><strong>OFAC / BIS:</strong> No direct designation. Myanmar-period operations screened — no SDN match for Adani entities [1][2]</li>
+            </ul>
+          </div>
+          <div>
+            <div class="report-section-title">Verification Metadata</div>
+            <div style="display:flex;flex-direction:column;gap:0.5rem;margin-bottom:1rem;">
+              <div style="display:flex;justify-content:space-between;font-family:'IBM Plex Mono',monospace;font-size:0.7rem;border-bottom:1px solid var(--border-light);padding-bottom:0.3rem;">
+                <span style="color:var(--text-muted);">faithfulness_score</span><span style="color:var(--sage);">0.86</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;font-family:'IBM Plex Mono',monospace;font-size:0.7rem;border-bottom:1px solid var(--border-light);padding-bottom:0.3rem;">
+                <span style="color:var(--text-muted);">citation_coverage</span><span style="color:var(--sage);">0.89</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;font-family:'IBM Plex Mono',monospace;font-size:0.7rem;border-bottom:1px solid var(--border-light);padding-bottom:0.3rem;">
+                <span style="color:var(--text-muted);">total_claims</span><span>103</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;font-family:'IBM Plex Mono',monospace;font-size:0.7rem;border-bottom:1px solid var(--border-light);padding-bottom:0.3rem;">
+                <span style="color:var(--text-muted);">unsupported_flags</span><span style="color:var(--gold);">8 (labelled UNVERIFIED)</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;font-family:'IBM Plex Mono',monospace;font-size:0.7rem;">
+                <span style="color:var(--text-muted);">planning_mode</span><span style="color:var(--gold);">AI-TAILORED · 9 agents</span>
+              </div>
+            </div>
+            <div class="report-section-title">AI-Tailored Agents Used</div>
+            <div style="display:flex;flex-wrap:wrap;gap:0.3rem;margin-bottom:0.8rem;">
+              <span class="tool-domain">overview_ownership</span>
+              <span class="tool-domain">sanctions_legal</span>
+              <span class="tool-domain">offshore_structures</span>
+              <span class="tool-domain">fcpa_corruption</span>
+              <span class="tool-domain">myanmar_country_risk</span>
+              <span class="tool-domain">israel_operations</span>
+              <span class="tool-domain">adverse_media_esg</span>
+              <span class="tool-domain">environmental_violations</span>
+              <span class="tool-domain">pep_ownership_risk</span>
+            </div>
+            <div class="report-section-title">Analyst Verdict</div>
+            <p style="font-size:0.85rem;color:var(--gold);line-height:1.6;">
+              <strong>ENHANCED DD REQUIRED + LEGAL REVIEW.</strong> Active DOJ/SEC bribery investigation is a material FCPA risk for US counterparties. Offshore ownership opacity and Myanmar history add complexity. ESG exclusion likely under EU SFDR Article 8/9 mandates. Legal opinion on FCPA exposure required before engagement.
+            </p>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<hr class="section-divider" />
+
+<!-- ── QUALITY & VERIFICATION ── -->
+<div class="section-alt">
+<section id="quality">
+  <div class="section">
+    <p class="section-label">07 · Quality &amp; Verification System</p>
+    <h2 class="section-title">How Deep-DD Ensures Report Accuracy</h2>
+    <p class="section-intro">
+      Citation discipline is the platform's core differentiator. The multi-tier verification system
+      ensures that every claim in a FINAL report is traceable to a real source, and that the source
+      actually supports the claim.
+    </p>
+    <div class="verify-grid" style="margin-bottom:2rem;">
+      <div class="score-card">
+        <div class="score-value">≥ 85%</div>
+        <div class="score-label">Faithfulness Threshold</div>
+        <div class="score-desc">
+          Of all cited claims, at least 85% must be confirmed as directly supported by the cited source text.
+          Below this threshold, the report routes back to the Synthesizer for revision.
+        </div>
+      </div>
+      <div class="score-card">
+        <div class="score-value">Coverage</div>
+        <div class="score-label">Citation Coverage Score</div>
+        <div class="score-desc">
+          Every claim must either carry a <span class="inline-code">[n]</span> citation or be labelled
+          <span class="inline-code">UNVERIFIED</span>. Coverage = (cited + labelled) / total claims.
+          Claims with no citation and no label are flagged as gaps.
+        </div>
+      </div>
+    </div>
+
+    <div class="three-col">
+      <div class="card">
+        <div class="card-accent card-accent-green"></div>
+        <div class="card-tag">Layer 1 · Per-Claim</div>
+        <h3>LLM-as-Judge Faithfulness Check</h3>
+        <p>The Verifier processes 8 claims per LLM call, comparing each claim to the actual source
+        text stored in the database. It classifies each claim as: supported / partially_supported /
+        unsupported / cannot_verify.</p>
+      </div>
+      <div class="card">
+        <div class="card-accent card-accent-green"></div>
+        <div class="card-tag">Layer 2 · Source Quality</div>
+        <h3>Source Tier Classification</h3>
+        <p>Every source is classified: Primary (government databases, court records), Secondary
+        (established news outlets, NGO reports), or Tertiary (blogs, forums, social media).
+        High-severity claims must be backed by Tier 1 or Tier 2 sources.</p>
+      </div>
+      <div class="card">
+        <div class="card-accent card-accent-green"></div>
+        <div class="card-tag">Layer 3 · Logic Checks</div>
+        <h3>Circular Dependency Detection</h3>
+        <p>The quality gate flags self-referencing claims — e.g., "Company X is corrupt" where the
+        only source is Company X's own press release. Wikipedia is explicitly excluded as a source;
+        agents must find and cite the underlying primary source.</p>
+      </div>
+    </div>
+
+    <div class="risk-box highlight-box" style="margin-top:2rem;">
+      <p>
+        <strong>What happens when verification fails?</strong> If faithfulness &lt; 0.85 after MAX_REVISIONS
+        (default: 2 revise loops), the report is marked <span class="inline-code">needs_review</span>
+        and flagged for mandatory human analyst review before any export is permitted.
+        No low-confidence report auto-publishes.
+      </p>
+    </div>
+  </div>
+</section>
+</div>
+
+<hr class="section-divider" />
+
+<!-- ── FUTURE IMPROVEMENTS ── -->
+<section id="future">
+  <div class="section">
+    <p class="section-label">08 · Future Improvements</p>
+    <h2 class="section-title">The Roadmap</h2>
+    <p class="section-intro">
+      Deep-DD's current architecture handles US-compliance adverse screening well. The next phase
+      expands coverage, improves automation, and moves toward multi-jurisdictional and real-time capabilities.
+    </p>
+    <div class="future-grid">
+
+      <div class="future-item">
+        <div class="future-horizon horizon-near">Near Term · 0–3 months</div>
+        <div class="future-title">Multi-Jurisdictional Sanctions Expansion</div>
+        <div class="future-desc">
+          Add UK OFSI, Australia DFAT, Canada SEMA, and Japan METI sanctions databases.
+          Currently Deep-DD covers OFAC + EU + UN; global counterparty screening requires
+          jurisdiction-matching to the user's nexus country.
+        </div>
+      </div>
+
+      <div class="future-item">
+        <div class="future-horizon horizon-near">Near Term · 0–3 months</div>
+        <div class="future-title">Structured Risk Score &amp; Dashboard</div>
+        <div class="future-desc">
+          Replace the narrative-only FINAL report with a structured risk score (0–100) by category:
+          Sanctions, Litigation, ESG, PEP, Reputational. Enable portfolio-level dashboards showing
+          risk distribution across all screened counterparties.
+        </div>
+      </div>
+
+      <div class="future-item">
+        <div class="future-horizon horizon-mid">Mid Term · 3–9 months</div>
+        <div class="future-title">Continuous Monitoring &amp; Alerting</div>
+        <div class="future-desc">
+          Schedule periodic re-runs on approved counterparties. Diff new report against baseline —
+          alert analysts only when new adverse findings emerge. Ideal for ongoing third-party monitoring
+          required by FCPA and AML programs.
+        </div>
+      </div>
+
+      <div class="future-item">
+        <div class="future-horizon horizon-mid">Mid Term · 3–9 months</div>
+        <div class="future-title">Document Ingestion &amp; Analyst Upload</div>
+        <div class="future-desc">
+          Allow analysts to upload supporting documents (contracts, corporate registry extracts,
+          identification documents) that the research agents can reference and cite alongside
+          web-sourced findings. Currently limited to web + compliance database sources.
+        </div>
+      </div>
+
+      <div class="future-item">
+        <div class="future-horizon horizon-mid">Mid Term · 3–9 months</div>
+        <div class="future-title">Analyst Annotation &amp; Collaborative Review</div>
+        <div class="future-desc">
+          Enable analysts to annotate specific findings (agree / dispute / escalate) within the
+          report viewer. Disputes feed back into a re-verify loop. Annotations persist in the
+          audit trail alongside the original report JSON.
+        </div>
+      </div>
+
+      <div class="future-item">
+        <div class="future-horizon horizon-far">Long Term · 9–18 months</div>
+        <div class="future-title">Real-Time Sanctions Watchlist Integration</div>
+        <div class="future-desc">
+          Move from periodic searches to real-time webhook subscriptions on OFAC, EU, and UN
+          sanctions list updates. When a previously-cleared counterparty is newly designated,
+          trigger an automatic alert and re-run report without manual scheduling.
+        </div>
+      </div>
+
+      <div class="future-item">
+        <div class="future-horizon horizon-far">Long Term · 9–18 months</div>
+        <div class="future-title">Graph-Based Entity Relationship Mapping</div>
+        <div class="future-desc">
+          Build a persistent entity graph (Neo4j or similar) across all runs. When a new subject
+          is screened, automatically surface connections to previously-screened entities —
+          enabling network-level adverse finding propagation without repeated full runs.
+        </div>
+      </div>
+
+      <div class="future-item">
+        <div class="future-horizon horizon-far">Long Term · 9–18 months</div>
+        <div class="future-title">Fine-Tuned Compliance LLM</div>
+        <div class="future-desc">
+          Fine-tune a Sonnet-class model on the platform's historical verified reports, citation
+          corrections, and faithfulness judgements. Reduce hallucination rates, improve
+          jurisdiction-specific terminology accuracy, and lower per-run token costs by 30–50%.
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<hr class="section-divider" />
+
+<!-- ── DEPLOYMENT ── -->
+<div class="section-alt">
+<section id="deploy">
+  <div class="section">
+    <p class="section-label">09 · Deployment &amp; Operations</p>
+    <h2 class="section-title">Running Deep-DD</h2>
+    <p class="section-intro">
+      The platform supports three deployment modes: local development, Docker Compose for team instances,
+      and headless CLI for scripted or automated runs.
+    </p>
+    <div class="three-col">
+      <div class="card">
+        <div class="card-accent"></div>
+        <div class="card-tag">Mode 1</div>
+        <h3>Local Development</h3>
+        <p>Use <span class="inline-code">scripts/setup/setup-all.sh</span> to install dependencies,
+        <span class="inline-code">setup-fresh.sh</span> to configure .env and run DB migrations,
+        then <span class="inline-code">run-local.sh</span> to start API + workers + Vite frontend.</p>
+      </div>
+      <div class="card">
+        <div class="card-accent card-accent-green"></div>
+        <div class="card-tag">Mode 2</div>
+        <h3>Docker Compose</h3>
+        <p>Run <span class="inline-code">docker compose up --build</span> for all services.
+        Scale workers horizontally with <span class="inline-code">docker compose up --scale worker=N</span>
+        where N is the desired concurrent report capacity.</p>
+      </div>
+      <div class="card">
+        <div class="card-accent" style="background:#8a5ce0;"></div>
+        <div class="card-tag">Mode 3</div>
+        <h3>Headless CLI</h3>
+        <p>Run <span class="inline-code">python cli.py --subject "Company Name" --type company</span>
+        for scripted runs with no API, DB, or UI. Outputs report JSON to stdout.
+        Useful for batch processing or CI integration.</p>
+      </div>
+    </div>
+
+    <h3 style="font-family:'Fraunces',serif; font-size:1.1rem; margin:2rem 0 1rem;">Key API Endpoints</h3>
+    <table class="stack-table">
+      <thead><tr><th>Method</th><th>Endpoint</th><th>Purpose</th></tr></thead>
+      <tbody>
+        <tr><td>POST</td><td>/api/runs</td><td>Create new run — enqueues background RQ job</td></tr>
+        <tr><td>GET</td><td>/api/runs/{id}/stream</td><td>SSE live progress stream (per-agent status)</td></tr>
+        <tr><td>GET</td><td>/api/runs/{id}/raw</td><td>RAW report JSON (per-agent narratives, tool logs)</td></tr>
+        <tr><td>GET</td><td>/api/runs/{id}/final</td><td>FINAL verified report JSON with citations</td></tr>
+        <tr><td>GET</td><td>/api/runs/{id}/export</td><td>Download as PDF / Word / Markdown</td></tr>
+        <tr><td>POST</td><td>/api/runs/{id}/resume</td><td>Resume interrupted run from Postgres checkpoint</td></tr>
+        <tr><td>POST</td><td>/api/runs/{id}/review</td><td>Mark needs_review → done (human approval gate)</td></tr>
+        <tr><td>GET</td><td>/api/models</td><td>Server-driven model catalog (current available models)</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+</div>
+
+<hr class="section-divider" />
+
+<!-- ── GLOSSARY ── -->
+<section id="glossary">
+  <div class="section">
+    <p class="section-label">10 · Glossary</p>
+    <h2 class="section-title">Key Terms</h2>
+    <p class="section-intro">
+      Terminology used throughout the platform and this primer, organized for quick reference.
+    </p>
+    <div class="glossary-grid">
+      <div class="glossary-item">
+        <div class="glossary-term">SDN</div>
+        <div class="glossary-def">Specially Designated National — entity on OFAC's primary sanctions list. US persons are prohibited from all transactions with SDNs.</div>
+      </div>
+      <div class="glossary-item">
+        <div class="glossary-term">OFAC</div>
+        <div class="glossary-def">Office of Foreign Assets Control — US Treasury agency that administers sanctions programs and the SDN list.</div>
+      </div>
+      <div class="glossary-item">
+        <div class="glossary-term">BIS</div>
+        <div class="glossary-def">Bureau of Industry and Security — US Commerce agency that controls exports of dual-use goods. Maintains Entity List and Denied Parties lists.</div>
+      </div>
+      <div class="glossary-item">
+        <div class="glossary-term">PACER</div>
+        <div class="glossary-def">Public Access to Court Electronic Records — US federal court filing system. Source for civil, criminal, and bankruptcy records.</div>
+      </div>
+      <div class="glossary-item">
+        <div class="glossary-term">FCPA</div>
+        <div class="glossary-def">Foreign Corrupt Practices Act — US law prohibiting bribery of foreign officials. Applies to US persons and companies listed on US exchanges.</div>
+      </div>
+      <div class="glossary-item">
+        <div class="glossary-term">PEP</div>
+        <div class="glossary-def">Politically Exposed Person — individual holding or having held public office. Requires enhanced due-diligence under AML regulations.</div>
+      </div>
+      <div class="glossary-item">
+        <div class="glossary-term">UBO</div>
+        <div class="glossary-def">Ultimate Beneficial Owner — natural person(s) who ultimately own or control an entity (typically ≥25% ownership threshold).</div>
+      </div>
+      <div class="glossary-item">
+        <div class="glossary-term">OCCRP</div>
+        <div class="glossary-def">Organized Crime and Corruption Reporting Project — investigative journalism network. ALEPH database indexes leaks, court records, and corporate registries.</div>
+      </div>
+      <div class="glossary-item">
+        <div class="glossary-term">LangGraph</div>
+        <div class="glossary-def">Python framework for building stateful, multi-actor LLM applications using directed acyclic graphs (DAGs). Used for Deep-DD's orchestration pipeline.</div>
+      </div>
+      <div class="glossary-item">
+        <div class="glossary-term">Faithfulness Score</div>
+        <div class="glossary-def">Ratio of LLM-cited claims confirmed as supported by their source text. Deep-DD requires ≥0.85 before publishing a FINAL report.</div>
+      </div>
+      <div class="glossary-item">
+        <div class="glossary-term">RAW Report</div>
+        <div class="glossary-def">Per-agent unedited narrative, all discovered sources, and full tool call logs. Used for audit trail and human review, not client delivery.</div>
+      </div>
+      <div class="glossary-item">
+        <div class="glossary-term">FINAL Report</div>
+        <div class="glossary-def">Verified, consolidated report with [n] citation markers, faithfulness scores, source manifest, and structured sections. The deliverable report.</div>
+      </div>
+      <div class="glossary-item">
+        <div class="glossary-term">SSE</div>
+        <div class="glossary-def">Server-Sent Events — HTTP streaming protocol used by Deep-DD to push real-time per-agent status updates to the frontend without polling.</div>
+      </div>
+      <div class="glossary-item">
+        <div class="glossary-term">CHAIN-SEARCH</div>
+        <div class="glossary-def">Deep-DD protocol requiring agents to search for every connected entity (subsidiaries, officers, shareholders) discovered during primary research, not just the named subject.</div>
+      </div>
+      <div class="glossary-item">
+        <div class="glossary-term">EPA ECHO</div>
+        <div class="glossary-def">Environmental Compliance History Online — EPA database of enforcement actions, fines, penalties, and consent decrees for environmental violations.</div>
+      </div>
+      <div class="glossary-item">
+        <div class="glossary-term">FPDS</div>
+        <div class="glossary-def">Federal Procurement Data System — US government database of all federal contracts. Used to identify defense, weapons, or dual-use procurement relationships.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── FOOTER ── -->
+<footer>
+  <div>
+    <strong>DEEP-DD</strong> · Adverse Due-Diligence Platform · Edition 2026<br />
+    AI1stLab Internal Reference · Not for External Distribution
+  </div>
+  <div style="text-align:right;">
+    Stack: FastAPI · LangGraph · Claude Sonnet 4.6 · PostgreSQL · Redis · React<br />
+    Default model: <strong>claude-sonnet-4-6</strong> · Target cost: &lt;$5/run · Min. faithfulness: 0.85
+  </div>
+</footer>
+
+</body>
+</html>

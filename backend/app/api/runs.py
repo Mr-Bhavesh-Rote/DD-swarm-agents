@@ -54,7 +54,9 @@ async def create_run(
     # flow (enqueue now; the planner regenerates at run time) so create never hard-fails.
     gated = False
     if req.plan_override is None and req.planning_mode == "ai":
-        ai_plan, plan_cost = _generate_ai_plan(req)
+        ai_plan, plan_cost = await asyncio.get_event_loop().run_in_executor(
+            None, _generate_ai_plan, req
+        )
         if ai_plan is not None:
             payload = ai_plan.model_dump()
             payload["_is_generated"] = True
